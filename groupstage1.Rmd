@@ -1,0 +1,354 @@
+---
+title: "World cup predictions"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+# Packages needed
+library(dplyr)
+library(tidyr)
+library(loo)
+library(cmdstanr)
+library(footBayes)
+library(posterior)
+library(bayesplot)
+library(instantiate)
+```
+
+# The theory
+
+# The data 
+
+## Results data
+
+First, we load the dataset results from the following git repository : https://github.com/martj42/international_results.
+
+```{r}
+worldcup <- read.csv("data/results.csv")
+```
+
+We keep only the games since the 1st of January 2022.
+
+```{r}
+worldcup2026 <- worldcup %>%
+  mutate(date = as.Date(date)) %>%
+  filter(date >= as.Date("2022-01-01")) %>%
+  mutate(is_future = is.na(home_score) | is.na(away_score)) %>%
+  arrange(is_future, date)
+
+summary(worldcup2026)
+table(worldcup2026$is_future)
+```
+
+Then we collect the names of all the teams which played a friendly game during this period and we also collect the names of the 48 teams which will compete during the 2026 World Cup.
+
+```{r}
+friendly_teams <- worldcup2026 %>%
+  filter(tournament == "Friendly") %>%
+  select(home_team, away_team) %>%
+  pivot_longer(
+    cols = c(home_team, away_team),
+    names_to = "side",
+    values_to = "team"
+  ) %>%
+  distinct(team) %>%
+  arrange(team)
+
+wc48_teams <- worldcup2026 %>%
+  filter(is_future == TRUE) %>%
+  select(home_team, away_team)
+
+wc48_teams <- unique(c(wc48_teams$home_team, wc48_teams$away_team))
+
+length(wc48_teams)
+```
+
+We then have to check that there is not games with missing values in the training data.
+
+```{r}
+# The training data (the games played since the 1st of January of 2022)
+played_matches <- worldcup2026 %>%
+  filter(is_future == FALSE)
+
+# Which games have missing values ?
+played_matches_with_na <- played_matches %>%
+  filter(if_any(everything(), is.na))
+
+# How much games with missing values do we have ?
+nrow(played_matches_with_na)
+```
+
+After, we have done that we want to exclude suspicious games, the friendly games where the difference between the two teams is too much important because it means one team is really bad.
+
+```{r}
+# All the games with "suspicious" outcomes
+worldcup2026_flagged <- worldcup2026 %>%
+  mutate(
+    total_goals = ifelse(is_future == FALSE, home_score + away_score, NA_real_),
+    goal_diff   = ifelse(is_future == FALSE, abs(home_score - away_score), NA_real_),
+
+    both_teams_in_wc48 = home_team %in% wc48_teams &
+      away_team %in% wc48_teams,
+
+    friendly_suspect = (tournament == "Friendly") &
+      (is_future == FALSE) &
+      (
+        goal_diff >= 5 |
+          (total_goals >= 7 & goal_diff >= 4)
+      ),
+
+    remove_match = friendly_suspect & !both_teams_in_wc48
+  )
+
+# Friendly games with suspicious resultas 
+friendly_suspects <- worldcup2026_flagged %>%
+  filter(friendly_suspect == TRUE) %>%
+  select(
+    date,
+    home_team,
+    away_team,
+    home_score,
+    away_score,
+    tournament,
+    total_goals,
+    goal_diff,
+    both_teams_in_wc48,
+    remove_match,
+    neutral
+  ) %>%
+  arrange(desc(goal_diff), desc(total_goals))
+
+# Then we keep only the non suspicious games 
+worldcup2026_clean <- worldcup2026_flagged %>%
+  filter(remove_match == FALSE)
+```
+
+We then check all the games we have now.
+
+```{r}
+cat("Matches before cleaning:", nrow(worldcup2026), "\n")
+cat("Matches after cleaning:", nrow(worldcup2026_clean), "\n")
+cat("Removed matches:", nrow(worldcup2026) - nrow(worldcup2026_clean), "\n")
+
+table(worldcup2026$is_future)
+table(worldcup2026_clean$is_future)
+
+summary(worldcup2026_clean)
+```
+
+## FIFA Ranking
+
+```{r}
+ranking <- read.csv("data/ranking_fifa_historical.csv")
+```
+
+```{r}
+ranking_worldcup <- ranking %>% 
+  mutate(rank_points = as.numeric(total_points)) %>% 
+  filter(!is.na(rank_points)) %>% 
+  mutate(
+    date = as.Date(date),
+    team = iconv(as.character(team), to = "UTF-8", sub = ""), 
+    team = as.factor(team)
+  ) %>% 
+  filter(date > as.Date("2021-12-21")) %>%
+  select(date, team, rank_points)
+```
+
+```{r}
+ranking_worldcup <- ranking_worldcup %>%
+  mutate(team = case_when(
+    team == "Cabo Verde" ~ "Cape Verde",
+    team == "Aotearoa New Zealand" ~ "New Zealand",
+    team == "Côte d'Ivoire" ~ "Ivory Coast",
+    team == "The Gambia" ~ "Gambia",
+    team == "Korea Republic" ~ "South Korea",
+    team == "USA" ~ "United States",
+    team == "IR Iran" ~ "Iran",
+    team == "Congo DR" ~ "DR Congo",
+    team == "Czechia" ~ "Czech Republic",
+    team == "St Vincent and the Grenadines" ~ "Saint Vincent and the Grenadines",
+    team == "US Virgin Islands" ~ "United States Virgin Islands",
+    team == "Hong Kong, China" ~ "Hong Kong",
+    team == "Kyrgyz Republic" ~ "Kyrgyzstan",
+    team == "St Kitts and Nevis" ~ "Saint Kitts and Nevis",
+    team == "St Lucia" ~ "Saint Lucia",
+    team == "Brunei Darussalam" ~ "Brunei",
+    team == "Chinese Taipei" ~ "Taiwan",
+    team == "Korea DPR" ~ "North Korea",
+    team == "Türkiye" ~ "Turkey",
+    TRUE ~ team # 
+  ))
+```
+
+```{r}
+ranking_worldcup <- ranking_worldcup %>% 
+  arrange(date, rank_points)
+```
+
+## All the teams are in FIFA ranking
+
+```{r}
+worldcup2026_clean <- worldcup2026_clean %>%
+  filter((home_team %in% ranking_worldcup$team) & (away_team %in% ranking_worldcup$team) )
+```
+
+## Creation of the periods
+
+We start by creatinng a period associated to each update dates.
+
+```{r}
+ranking_worldcup <- ranking_worldcup %>%
+  arrange(date) %>%
+  mutate(periods = dense_rank(date))
+
+dates_periods <- ranking_worldcup %>%
+  select(date, periods) %>%
+  distinct()
+```
+
+Then, we will attribute the corresponding period to each game.
+
+```{r}
+worldcup2026_clean <- worldcup2026_clean %>%
+  full_join(dates_periods, by = c("date" = "date")) %>%
+  arrange(date) %>%
+  fill(periods, .direction = "down") %>% 
+  filter(!is.na(home_team))
+```
+
+
+## Results for footBayes
+
+We need to prepare the data to be used by the function stan_foot of footBayes package.
+
+```{r}
+results_footBayes <- worldcup2026_clean %>%
+  arrange(is_future, date) %>%
+  rename(
+    home_goals = home_score,
+    away_goals = away_score
+  ) %>%
+  select(
+    periods,
+    home_team,
+    away_team,
+    home_goals,
+    away_goals,
+    is_future
+  )
+```
+
+We check if the games we want to predict are in the data.
+
+```{r}
+n_future <- sum(results_footBayes$is_future)
+
+cat("Number of future matches:", n_future, "\n")
+
+if (n_future != 72) {
+  warning("The number of future matches is not 72 after filtering.")
+}
+
+n_total <- nrow(results_footBayes)
+n_train <- n_total - n_future
+```
+
+
+# The predictions
+
+We will use a function to make the predictions (this function we use some functions of the footBayes package).
+
+```{r}
+fit_and_predict_model <- function(model_name, n_predict, data, ranking = FALSE) {
+  cat("Fitting model:", model_name, "\n")
+  if (!ranking) {
+    fit <- stan_foot(
+      data = data,
+      model = model_name,
+      predict = n_predict,
+      dynamic_type = "seasonal",
+      home_effect = FALSE,
+      init = 0,
+      chains = 4,
+      iter_sampling = 1000,
+      iter_warmup = 1000,
+      seed = 123
+    )
+    cat("Computing predicted probabilities for:", model_name, "\n")
+  
+    prob <- foot_prob(fit)
+  
+    colnames(prob$prob_table) <- c(
+      "home",
+      "away",
+      "home win",
+      "draw",
+      "away win",
+      "mlo"
+    )
+  
+    return(
+      list(
+        fit = fit,
+        prob = prob
+      )
+    )
+  }
+  else {
+    fit <- stan_foot(
+      data = data,
+      model = model_name,
+      predict = n_predict,
+      ranking = ranking,
+      dynamic_type = "seasonal",
+      home_effect = FALSE,
+      init = 0,
+      chains = 4,
+      iter_sampling = 1000,
+      iter_warmup = 1000,
+      seed = 123
+    )
+    cat("Computing predicted probabilities for:", model_name, "\n")
+  
+    prob <- foot_prob(fit)
+  
+    colnames(prob$prob_table) <- c(
+      "home",
+      "away",
+      "home win",
+      "draw",
+      "away win",
+      "mlo"
+    )
+  
+    return(
+      list(
+        fit = fit,
+        prob = prob
+      )
+    )
+  }
+}
+```
+
+## The double poisson model 
+
+```{r}
+double_poisson <- fit_and_predict_model("double_pois", n_future, results_footBayes)
+
+
+```
+
+## The diagonal inflated bivariate poisson model
+
+```{r}
+double_poisson <- fit_and_predict_model("diag_infl_biv_pois", n_future, results_footBayes)
+
+
+```

@@ -1,0 +1,480 @@
+---
+title: "WorldcupGit"
+output: html_document
+date: "2026-06-05"
+---
+
+```{r setup, include=FALSE}
+library(footBayes)
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(posterior)
+library(bayesplot)
+library(loo)
+library(cmdstanr)
+library(instantiate)
+# ============================================================
+# 1. Load data
+# ============================================================
+getwd()
+setwd("C:/Users/Rayen/Downloads") ## Attention
+worldcup <- read.csv("results.csv")
+
+
+worldcup2026 <- worldcup %>%
+  mutate(date = as.Date(date)) %>%
+  filter(date >= as.Date("2022-01-01")) %>%
+  mutate(is_future = is.na(home_score) | is.na(away_score)) %>%
+  arrange(is_future, date)
+
+summary(worldcup2026)
+table(worldcup2026$is_future)
+
+
+```
+
+
+
+## R Markdown
+
+
+
+```{r cars}
+
+
+# ============================================================
+# Teams that played friendly matches
+
+
+friendly_teams <- worldcup2026 %>%
+  filter(tournament == "Friendly") %>%
+  select(home_team, away_team) %>%
+  pivot_longer(
+    cols = c(home_team, away_team),
+    names_to = "side",
+    values_to = "team"
+  ) %>%
+  distinct(team) %>%
+  arrange(team)
+
+friendly_teams
+
+```
+
+## 
+
+Friendly matches adjustments
+
+
+```{r }
+
+
+
+# ============================================================
+# Friendly matches adjustments
+# ============================================================
+
+library(dplyr)
+
+# Teams present in the WC 2026
+wc48_teams <- worldcup2026 %>%
+  filter(is_future == TRUE) %>%
+  select(home_team, away_team)
+
+wc48_teams <- unique(c(wc48_teams$home_team, wc48_teams$away_team))
+
+length(wc48_teams) # should be 48 
+wc48_teams
+
+
+# ============================================================
+# Check NAs in non-future matches
+
+played_matches <- worldcup2026 %>%
+  filter(is_future == FALSE)
+
+# Show rows where at least one column has NA
+played_matches_with_na <- played_matches %>%
+  filter(if_any(everything(), is.na))
+
+
+# Number of played matches with at least one NA
+nrow(played_matches_with_na)
+
+
+#Add score variables and flags only once
+worldcup2026_flagged <- worldcup2026 %>%
+  mutate(
+    total_goals = ifelse(is_future == FALSE, home_score + away_score, NA_real_),
+    goal_diff   = ifelse(is_future == FALSE, abs(home_score - away_score), NA_real_),
+
+    both_teams_in_wc48 = home_team %in% wc48_teams &
+      away_team %in% wc48_teams,
+
+    friendly_suspect = tournament == "Friendly" &
+      is_future == FALSE &
+      (
+        goal_diff >= 5 |
+          (total_goals >= 7 & goal_diff >= 4)
+      ),
+
+    remove_match = friendly_suspect & !both_teams_in_wc48
+  )
+
+# Inspect suspicious friendly matches
+
+friendly_suspects <- worldcup2026_flagged %>%
+  filter(friendly_suspect == TRUE) %>%
+  select(
+    date,
+    home_team,
+    away_team,
+    home_score,
+    away_score,
+    tournament,
+    total_goals,
+    goal_diff,
+    both_teams_in_wc48,
+    remove_match,
+    neutral
+  ) %>%
+  arrange(desc(goal_diff), desc(total_goals))
+
+
+
+# Inspect matches that will actually be removed
+matches_to_remove <- worldcup2026_flagged %>%
+  filter(remove_match == TRUE) %>%
+  select(
+    date,
+    home_team,
+    away_team,
+    home_score,
+    away_score,
+    tournament,
+    total_goals,
+    goal_diff,
+    both_teams_in_wc48,
+    remove_match,
+    neutral
+  ) %>%
+  arrange(desc(goal_diff), desc(total_goals))
+
+
+# Remove only the selected matches
+worldcup2026_clean <- worldcup2026_flagged %>%
+  filter(remove_match == FALSE)
+
+
+# on fait le checking
+cat("Matches before cleaning:", nrow(worldcup2026), "\n")
+cat("Matches after cleaning:", nrow(worldcup2026_clean), "\n")
+cat("Removed matches:", nrow(worldcup2026) - nrow(worldcup2026_clean), "\n")
+
+table(worldcup2026$is_future)
+table(worldcup2026_clean$is_future)
+
+
+```
+
+
+# footBayes 
+
+
+
+```{r}
+
+# Prepare data for footBayes WITHOUT FIFA ranking (à ajouter aprés)
+
+
+results_footBayes <- worldcup2026_clean %>%
+  mutate(
+    periods = as.numeric(format(date, "%Y"))
+  ) %>%
+  arrange(is_future, date) %>%
+  rename(
+    home_goals = home_score,
+    away_goals = away_score
+  ) %>%
+  select(
+    periods,
+    home_team,
+    away_team,
+    home_goals,
+    away_goals,
+    is_future
+  )
+
+# ==============================
+# Iteratively remove training rows where away_team is not present as home_team
+# This avoids footBayes error: Variable 'team2' has NA values
+# =========================
+
+repeat {
+  
+  train_home_teams <- results_footBayes %>%
+    filter(is_future == FALSE) %>%
+    pull(home_team) %>%
+    as.character() %>%
+    unique()
+  
+  bad_away_train <- results_footBayes %>%
+    filter(is_future == FALSE) %>%
+    pull(away_team) %>%
+    as.character() %>%
+    unique() %>%
+    setdiff(train_home_teams)
+  
+  if (length(bad_away_train) == 0) {
+    break
+  }
+  
+  cat("Bad away teams removed in this iteration:\n")
+  print(bad_away_train)
+  
+  rows_before <- nrow(results_footBayes)
+  
+  results_footBayes <- results_footBayes %>%
+    filter(
+      is_future == TRUE |
+        !(as.character(away_team) %in% bad_away_train)
+    )
+  
+  rows_after <- nrow(results_footBayes)
+  
+  cat("Rows removed:", rows_before - rows_after, "\n")
+}
+
+# ============================================================
+# Recompute number of future matches
+# ============================================================
+
+n_future <- sum(results_footBayes$is_future)
+
+cat("Number of future matches:", n_future, "\n")
+
+if (n_future != 72) {
+  warning("The number of future matches is not 72 after filtering.")
+}
+
+# ============================================================
+# Create data_model
+# Replace future NA scores by artificial 11-11
+# ============================================================
+
+data_model <- results_footBayes %>%
+  mutate(
+    home_goals = ifelse(is.na(home_goals), 11, home_goals),
+    away_goals = ifelse(is.na(away_goals), 11, away_goals)
+  ) %>%
+  select(
+    periods,
+    home_team,
+    away_team,
+    home_goals,
+    away_goals
+  )
+
+# ============================================================
+# Final checks
+# ============================================================
+
+cat("NA home_team:", sum(is.na(data_model$home_team)), "\n")
+cat("NA away_team:", sum(is.na(data_model$away_team)), "\n")
+cat("NA home_goals:", sum(is.na(data_model$home_goals)), "\n")
+cat("NA away_goals:", sum(is.na(data_model$away_goals)), "\n")
+
+n_total <- nrow(data_model)
+n_train <- n_total - n_future
+
+train_data <- data_model[1:n_train, ]
+pred_data  <- data_model[(n_train + 1):n_total, ]
+
+bad_away_train_check <- setdiff(
+  unique(as.character(train_data$away_team)),
+  unique(as.character(train_data$home_team))
+)
+
+bad_away_pred_check <- setdiff(
+  unique(as.character(pred_data$away_team)),
+  unique(as.character(train_data$home_team))
+)
+
+cat("Bad away teams in training after correction:\n")
+print(bad_away_train_check)
+
+cat("Bad away teams in prediction after correction:\n")
+print(bad_away_pred_check)
+
+tail(data_model, n_future)
+
+
+```
+
+
+
+```{r}
+
+
+
+
+
+
+
+
+
+
+
+
+fit_and_predict_model <- function(model_name) {
+  
+  cat("Fitting model:", model_name, "\n")
+  
+  fit <- stan_foot(
+    data = data_model,
+    model = model_name,
+    predict = n_future,
+    dynamic_type = "seasonal",
+    home_effect = FALSE,
+    init = 0,
+    chains = 4,
+    iter_sampling = 1000,
+    iter_warmup = 1000,
+    seed = 123
+  )
+  
+  cat("Computing predicted probabilities for:", model_name, "\n")
+  
+  prob <- foot_prob(fit, data_model)
+  
+  colnames(prob$prob_table) <- c(
+    "home",
+    "away",
+    "home win",
+    "draw",
+    "away win",
+    "mlo"
+  )
+  
+  return(
+    list(
+      fit = fit,
+      prob = prob
+    )
+  )
+}
+
+
+# Double Poisson model
+# ============================================================
+
+res_dp <- fit_and_predict_model(
+  model_name = "double_pois"
+)
+
+knitr::kable(res_dp$prob$prob_table)
+
+res_dp$prob$prob_plot
+
+
+
+
+```
+
+
+
+```{r}
+# ============================================================
+# Bivariate Poisson model
+# ==========================================================
+
+
+
+res_bp <- fit_and_predict_model(
+  model_name = "biv_pois"
+)
+
+knitr::kable(res_bp$prob$prob_table)
+
+res_bp$prob$prob_plot
+
+
+
+
+```
+
+
+
+
+
+```{r}
+# ============================================================
+# Diagonal-inflated Bivariate Poisson model
+# ============================================================
+
+res_dbp <- fit_and_predict_model(
+  model_name = "diag_infl_biv_pois"
+)
+
+knitr::kable(res_dbp$prob$prob_table)
+
+res_dbp$prob$prob_plot
+
+
+
+
+```
+
+
+
+```{r}
+
+
+
+
+
+```
+
+
+
+```{r}
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
