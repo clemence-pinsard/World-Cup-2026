@@ -1,0 +1,384 @@
+---
+title: "Predictions"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Packages needed
+library(dplyr)
+library(tidyr)
+library(loo)
+library(cmdstanr)
+library(footBayes)
+library(posterior)
+library(bayesplot)
+library(instantiate)
+library(stringi)
+```
+
+# The theory
+
+# The data
+
+## Data loading and preprocessing
+
+```{r, include=FALSE}
+# Exécute le script et charge tout son contenu
+source("ranking_preprocessing.R")
+```
+
+```{r, include=FALSE}
+# Exécute le script et charge tout son contenu
+source("ranking2025_11_19_preprocessing.R")
+```
+
+```{r, include=FALSE}
+# Exécute le script et charge tout son contenu
+source("results_preprocessing.R")
+```
+
+```{r}
+resultat <- rbind(ranking, ranking2025_11_19)
+```
+
+
+## All the teams are in the ranking ?
+
+```{r}
+all_rank_norms <- unique(ranking$team_norm)
+res_teams <- unique(c(results$home_norm, results$away_norm))
+
+unmatched_in_results <- setdiff(res_teams, all_rank_norms)
+
+cat("\n=== Teams dans results sans correspondance dans ranking ===\n")
+print(sort(unmatched_in_results))
+```
+
+## All the teams in ranking are in results 
+
+```{r}
+all_rank_norms <- unique(ranking$team_norm)
+res_teams <- unique(c(results$home_norm, results$away_norm))
+
+unmatched_in_results <- setdiff(res_teams, all_rank_norms)
+
+cat("\n=== Teams dans results sans correspondance dans ranking ===\n")
+print(sort(unmatched_in_results))
+```
+
+## Correction of the names which cause problems 
+
+```{r}
+ranking <- ranking |>
+  mutate(team_norm = case_when(
+    
+    # ── Renommages officiels ──────────────────────────────────────────────────
+    team_norm == "CZECHIA"              ~ "CZECHREPUBLIC",
+    team_norm == "AOTEAROANEWZEALAND"   ~ "NEWZEALAND",
+    team_norm == "THEGAMBIA"            ~ "GAMBIA",
+    team_norm == "TURKIYE"              ~ "TURKEY",
+    team_norm == "TA14RKIYE"            ~ "TURKEY",   # encodage corrompu
+    
+    # ── Variantes de noms ────────────────────────────────────────────────────
+    team_norm == "CABOVERDE"            ~ "CAPEVERDE",
+    team_norm == "CAPEVERDEISLANDS"     ~ "CAPEVERDE",
+    team_norm == "COTEDIVOIRE"          ~ "IVORYCOAST",
+    team_norm == "CATEDIVOIRE"          ~ "IVORYCOAST",
+    team_norm == "CONGODR"              ~ "DRCONGO",
+    team_norm == "KOREAREPUBLIC"        ~ "SOUTHKOREA",
+    team_norm == "KOREADPR"             ~ "NORTHKOREA",
+    team_norm == "KYRGYZREPUBLIC"       ~ "KYRGYZSTAN",
+    team_norm == "USA"                  ~ "UNITEDSTATES",
+    team_norm == "USVIRGINISLANDS"      ~ "UNITEDSTATESVIRGINISLANDS",
+    team_norm == "STKITTSANDNEVIS"      ~ "SAINTKITTSANDNEVIS",
+    team_norm == "STLUCIA"              ~ "SAINTLUCIA",
+    team_norm == "STVINCENTANDTHEGRENADINES" ~ "SAINTVINCENTANDTHEGRENADINES",
+    team_norm == "BRUNEIDARUSSALAM"     ~ "BRUNEI",
+    team_norm == "CHINESETAIPEI"        ~ "TAIWAN",
+    team_norm == "IRIRAN"               ~ "IRAN",   # encodage corrompu
+    
+    # ── Variantes São Tomé ───────────────────────────────────────────────────
+    team_norm == "SAOTOMEANDPRINCIPE"   ~ "SAOTOMEETPRINCIPE",
+    team_norm == "SAOTOMEEPRINCIPE"     ~ "SAOTOMEETPRINCIPE",
+    team_norm == "SAOTOMACANDPRANCIPE"  ~ "SAOTOMEETPRINCIPE",
+    
+    # ── Suffixes (unranked) → nom de base ────────────────────────────────────
+    team_norm == "AMERICANSAMOAUNRANKED" ~ "AMERICANSAMOA",
+    team_norm == "SAMOAUNRANKED"         ~ "SAMOA",
+    team_norm == "TONGAUNRANKED"         ~ "TONGA",
+    team_norm == "ERITREAUNRANKED"       ~ "ERITREA",
+    team_norm == "ERITREA"               ~ "ERITREA",   # déjà bon mais absent de results
+    
+    # ── Typo ─────────────────────────────────────────────────────────────────
+    team_norm == "CAMPOON"              ~ "CAMEROON",
+    team_norm == "CURACAO"              ~ "CURACAO",   # déjà bon
+    team_norm == "CURAAAO"              ~ "CURACAO",
+
+    
+    TRUE ~ team_norm
+  ))
+```
+
+```{r}
+results <- results |>
+  mutate(
+    home_norm = case_when(
+      home_norm == "CURAAAO"             ~ "CURACAO",
+      home_norm == "SAOTOMACANDPRANCIPE" ~ "SAOTOMEETPRINCIPE",
+      TRUE ~ home_norm
+    ),
+    away_norm = case_when(
+      away_norm == "CURAAAO"             ~ "CURACAO",
+      away_norm == "SAOTOMACANDPRANCIPE" ~ "SAOTOMEETPRINCIPE",
+      TRUE ~ away_norm
+    )
+  )
+```
+
+## Formatting the ranking
+
+```{r}
+ranking_clean <- ranking %>% 
+  mutate(rank_points = total_points,
+         date = as.Date(date)) %>% 
+  filter(!is.na(rank_points)) %>% 
+  select(date, team_norm, rank_points) %>% 
+  mutate(team = team_norm) %>% 
+  select(date, team, rank_points)
+```
+
+```{r}
+top_140 <- ranking_clean %>% 
+  filter(date == max(date, na.rm = TRUE)) %>% 
+  slice_max(order_by = rank_points, n = 180, with_ties = FALSE) %>% 
+  pull(team)
+```
+
+```{r}
+ranking_worldcup <- ranking_clean %>% 
+  filter(team %in% top_140)
+```
+
+```{r}
+ranking_worldcup <- ranking_worldcup %>% 
+  arrange(date, rank_points)
+```
+
+## Creation of the periods
+
+```{r}
+ranking_periods <- ranking_worldcup %>%
+  arrange(date) %>%
+  mutate(periods = dense_rank(date))
+
+dates_periods <- ranking_periods %>%
+  select(date, periods) %>%
+  distinct()
+```
+
+```{r}
+worldcup2026_periods <- results %>%
+  full_join(dates_periods, by = c("date" = "date")) %>%
+  arrange(date) %>%
+  fill(periods, .direction = "down") %>% 
+  filter(!is.na(home_team))
+```
+
+## Ranking ready to be used by footBayes package
+
+```{r}
+ranking_footBayes <- data.frame(
+  team        = as.character(ranking_periods$team),
+  rank_points = as.numeric(ranking_periods$rank_points),
+  periods     = as.integer(ranking_periods$periods),
+  stringsAsFactors = FALSE
+)
+```
+
+## Formatting of results
+
+```{r}
+worldcup2026 <- worldcup2026_periods %>%
+  mutate(date = as.Date(date)) %>%
+  mutate(is_future = is.na(home_score) | is.na(away_score)) %>%
+  arrange(is_future, date)
+
+summary(worldcup2026)
+table(worldcup2026$is_future)
+```
+
+```{r}
+worldcup2026 <- worldcup2026 %>%
+  filter((home_norm %in% ranking_footBayes$team) & (away_norm %in% ranking_footBayes$team) )
+```
+
+```{r}
+friendly_teams <- worldcup2026 %>%
+  filter(tournament == "Friendly") %>%
+  select(home_norm, away_norm) %>%
+  pivot_longer(
+    cols = c(home_norm, away_norm),
+    names_to = "side",
+    values_to = "team"
+  ) %>%
+  distinct(team) %>%
+  arrange(team)
+
+wc48_teams <- worldcup2026 %>%
+  filter(is_future == TRUE) %>%
+  select(home_norm, away_norm)
+
+wc48_teams <- unique(c(wc48_teams$home_norm, wc48_teams$away_norm))
+
+length(wc48_teams)
+```
+
+```{r}
+# The training data (the games played since the 1st of January of 2022)
+played_matches <- worldcup2026 %>%
+  filter(is_future == FALSE)
+
+# Which games have missing values ?
+played_matches_with_na <- played_matches %>%
+  filter(if_any(everything(), is.na))
+
+# How much games with missing values do we have ?
+nrow(played_matches_with_na)
+```
+
+```{r}
+# All the games with "suspicious" outcomes
+worldcup2026_flagged <- worldcup2026 %>%
+  mutate(
+    total_goals = ifelse(is_future == FALSE, home_score + away_score, NA_real_),
+    goal_diff   = ifelse(is_future == FALSE, abs(home_score - away_score), NA_real_),
+
+    both_teams_in_wc48 = (home_norm %in% wc48_teams) &
+      (away_norm %in% wc48_teams),
+
+    friendly_suspect = (tournament == "Friendly") &
+      (is_future == FALSE) &
+      (
+        goal_diff >= 5 |
+          (total_goals >= 7 & goal_diff >= 4)
+      ),
+
+    remove_match = friendly_suspect & !both_teams_in_wc48
+  )
+
+# Friendly games with suspicious resultas 
+friendly_suspects <- worldcup2026_flagged %>%
+  filter(friendly_suspect == TRUE) %>%
+  select(
+    periods,
+    date,
+    home_team,
+    home_norm,
+    away_team,
+    away_norm,
+    home_score,
+    away_score,
+    tournament,
+    total_goals,
+    goal_diff,
+    both_teams_in_wc48,
+    remove_match,
+    neutral
+  ) %>%
+  arrange(desc(goal_diff), desc(total_goals))
+
+# Then we keep only the non suspicious games 
+worldcup2026_clean <- worldcup2026_flagged %>%
+  filter(remove_match == FALSE)
+```
+
+```{r}
+cat("Matches before cleaning:", nrow(worldcup2026), "\n")
+cat("Matches after cleaning:", nrow(worldcup2026_clean), "\n")
+cat("Removed matches:", nrow(worldcup2026) - nrow(worldcup2026_clean), "\n")
+
+table(worldcup2026$is_future)
+table(worldcup2026_clean$is_future)
+
+summary(worldcup2026_clean)
+```
+
+## Results ready for footBayes package
+
+```{r}
+results_footBayes <- worldcup2026_clean %>%
+  arrange(is_future, date) %>%
+  rename(
+    home_goals = home_score,
+    away_goals = away_score
+  ) %>%
+  select(
+    periods,
+    home_norm,
+    away_norm,
+    home_goals,
+    away_goals,
+    is_future
+  ) %>% 
+  mutate(home_team = home_norm,
+         away_team = away_norm)
+```
+
+```{r}
+n_future <- sum(results_footBayes$is_future)
+
+cat("Number of future matches:", n_future, "\n")
+
+if (n_future != 72) {
+  warning("The number of future matches is not 72 after filtering.")
+}
+
+n_total <- nrow(results_footBayes)
+n_train <- n_total - n_future
+
+results_footBayes_ready <- results_footBayes %>% 
+  select(periods, home_team, home_goals, away_team, away_goals)
+```
+
+# The predictions
+
+## The Double Poisson model
+
+```{r}
+double_poisson <- stan_foot(
+  data = results_footBayes_ready,
+  model = "double_pois",
+  predict = 72,
+  ranking = ranking_footBayes,
+  dynamic_type = "seasonal",
+  home_effect = FALSE,
+  chains = 4,
+  iter_sampling = 1000,
+  iter_warmup = 1000,
+  seed = 123
+)
+```
+
+```{r}
+prob_double_poisson <- foot_prob(object = double_poisson, data = results_footBayes_ready)
+```
+
+```{r}
+colnames(prob_double_poisson$prob_table) <- c(
+      "home",
+      "away",
+      "home win",
+      "draw",
+      "away win",
+      "mlo"
+    )
+
+prob_double_poisson$prob_table
+```
+
+
+## The Diaginal Inflated Bivariate Poisson model 

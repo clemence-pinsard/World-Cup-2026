@@ -157,6 +157,7 @@ ranking_worldcup <- ranking %>%
     team = as.factor(team)
   ) %>% 
   filter(date > as.Date("2021-12-21")) %>%
+  filter(!is.na(rank_points)) %>% 
   select(date, team, rank_points)
 ```
 
@@ -191,6 +192,7 @@ ranking_worldcup <- ranking_worldcup %>%
   arrange(date, rank_points)
 ```
 
+
 ## All the teams are in FIFA ranking
 
 ```{r}
@@ -220,6 +222,15 @@ worldcup2026_clean <- worldcup2026_clean %>%
   arrange(date) %>%
   fill(periods, .direction = "down") %>% 
   filter(!is.na(home_team))
+```
+
+```{r}
+ranking_clean <- data.frame(
+  team        = as.character(ranking_worldcup$team),
+  rank_points = as.numeric(ranking_worldcup$rank_points),
+  periods     = as.integer(ranking_worldcup$periods),
+  stringsAsFactors = FALSE
+)
 ```
 
 
@@ -265,9 +276,9 @@ n_train <- n_total - n_future
 We will use a function to make the predictions (this function we use some functions of the footBayes package).
 
 ```{r}
-fit_and_predict_model <- function(model_name, n_predict, data, ranking = FALSE) {
+fit_and_predict_model <- function(model_name, n_predict, data, ranking = NULL) {
   cat("Fitting model:", model_name, "\n")
-  if (!ranking) {
+  if (!is.data.frame(ranking)) {
     fit <- stan_foot(
       data = data,
       model = model_name,
@@ -340,7 +351,7 @@ fit_and_predict_model <- function(model_name, n_predict, data, ranking = FALSE) 
 ## The double poisson model 
 
 ```{r}
-double_poisson <- fit_and_predict_model("double_pois", n_future, results_footBayes)
+double_poisson <- fit_and_predict_model("double_pois", n_future, results_footBayes[, -6], ranking_clean)
 
 
 ```
