@@ -443,6 +443,90 @@ colnames(prob_diag_infl$prob_table) <- c(
 prob_diag_infl$prob_table
 ```
 
+```{r}
+write.csv(prob_diag_infl$prob_table, 
+          file = "results/groupstage1_diag_infl_biv_pois.csv", 
+          row.names = FALSE)
+```
+
+```{r}
+new_names <- c(
+  "MEXICO"          = "Mexico",
+  "SOUTHKOREA"      = "South Korea",
+  "CANADA"            = "Canada",
+  "UNITEDSTATES"      = "United States",
+  "QATAR"      = "Qatar",
+  "BRAZIL"           = "Brazil",
+  "HAITI"            = "Haiti",
+  "AUSTRALIA"    = "Australia",
+  "GERMANY"      = "Germany",
+  "IVORYCOAST"          = "Ivory Coast",
+  "NETHERLANDS"            = "Netherlands",
+  "SWEDEN"          = "Sweden",
+  "BELGIUM"           = "Belgium",
+  "IRAN"          = "Iran",
+  "SPAIN"           = "Spain",
+  "SAUDIARABIA"           = "Saudi Arabia",
+  "FRANCE"          = "France",
+  "IRAQ"          = "Iraq", 
+  "ARGENTINA"          = "Argentina",
+  "AUSTRIA"        = "Austria",
+  "PORTUGAL"           = "Portugal",
+  "UZBEKISTAN"      = "Uzbekistan",
+  "ENGLAND"   = "England",
+  "GHANA"         = "Ghana",
+  "CZECHREPUBLIC"         = "Czech Republic",
+  "SWITZERLAND"          = "Switzerland",
+  "SCOTLAND"           = "Scotland",
+  "TURKEY"         = "Turkey",
+  "ECUADOR"            = "Ecuador",
+  "TUNISIA"        = "Tunisia",
+  "NEWZEALAND"          = "New Zealand",
+  "URUGUAY"         = "Uruguay",
+  "NORWAY"       = "Norway",
+  "JORDAN"          = "Jordan",
+  "COLOMBIA"     = "Colombia",
+  "PANAMA"          = "Panama",
+  "SOUTHAFRICA"     = "South Africa",
+  "BOSNIAANDHERZEGOVINA"           = "Bosnia and Herzegovina",
+  "MOROCCO"             = "Morocco",
+  "PARAGUAY"       = "Paraguay",
+  "CURACAO" = "Curacao",
+  "JAPAN" = "Japan",
+  "EGYPT" = "Egypt",
+  "CAPEVERDE" = "Cape Verde",
+  "SENEGAL" = "Senegal",
+  "ALGERIA" = "Algeria",
+  "DRCONGO" = "DR Congo",
+  "CROATIA" = "Croatia"
+)
+
+p <- prob_diag_infl$prob_plot
+
+for (old in names(new_names)) {
+  p$data$new_matches <- gsub(old, new_names[old], p$data$new_matches, ignore.case = TRUE)
+}
+
+p$theme$axis.text.x$size <- 4
+p$theme$axis.text.y$size <- 4
+p$theme$axis.title$size  <- 8
+p$theme$strip.text$size  <- 6 
+
+p <- p + theme(
+  strip.text = element_text(size = 6, face = "bold"),  
+  axis.text  = element_text(size = 4),                 
+  axis.title = element_text(size = 8, face = "bold"), 
+  plot.title = element_text(size = 14, face = "bold") 
+)
+
+p <- p + guides(color = "none")
+
+p
+```
+
+```{r}
+ggsave("results/plot_diag_infl.png", plot = p, width = 20, height = 15, dpi = 300)
+```
 
 Posterior  matches probabilities from the posterior predictive distribution of the model above are displayed in the table below. **mlo** denotes the most likely exact outcome (in parenthesis, the corresponding posterior probability). Darker regions in the plots below denote more likely outcomes: on the $x$-axis the home goals, on the $y$-axis the away goals. 
 
