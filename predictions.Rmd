@@ -18,6 +18,8 @@ library(posterior)
 library(bayesplot)
 library(instantiate)
 library(stringi)
+library(stringr)
+library(readr)
 ```
 
 # The theory
@@ -26,8 +28,8 @@ We use a **diagonal-inflated Bivariate-Poisson model with dynamic team-specific 
 
 \begin{align}
 (X_i, Y_i) &\ \sim \ \begin{cases} (1-p) \text{BP}(x_i, y_i |\lambda_1, \lambda_2, \lambda_3) \ \ \ & \text{if} \    x \ne y \\ (1-p) \text{BP}(x_i, y_i | \lambda_1, \lambda_2, \lambda_3) + pD(x, \eta) \ \ \ & \text{if} \   x = y, \end{cases}, \\
-\log(\lambda_{1i}) &=\    \text{att}_{h_i, t}+ \text{def}_{a_i,t} + \frac{\gamma}{2}(\mathsf{ranking}_{h_i}-\mathsf{ranking}_{a_i}) \\
-\log(\lambda_{2i}) & =\    \text{att}_{a_i,t} + \text{def}_{h_i,t} - \frac{\gamma}{2}(\mathsf{ranking}_{h_i}-\mathsf{ranking}_{a_i}), \ \ i=1,\ldots,n\ (\text{matches}), \\
+\log(\lambda_{1i}) &=\    \text{att}_{h_i, t}+ \text{def}_{a_i,t} + \frac{\gamma}{2}(\mathsf{ranking}_{h_i,t}-\mathsf{ranking}_{a_i,t}) \\
+\log(\lambda_{2i}) & =\    \text{att}_{a_i,t} + \text{def}_{h_i,t} - \frac{\gamma}{2}(\mathsf{ranking}_{h_i,t}-\mathsf{ranking}_{a_i}), \ \ i=1,\ldots,n\ (\text{matches}), \\
 \log(\lambda_{3i}) & =\ \rho,\\
 \text{att}_{k, t}&  \sim \ \mathcal{N}(\text{att}_{k, t-1}, \sigma^2), \\
 \text{def}_{k, t} & \sim \  \mathcal{N}(\text{def}_{k, t-1}, \sigma^2),\\
