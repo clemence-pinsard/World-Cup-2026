@@ -39,7 +39,7 @@ p & \sim \text{Uniform}(0,1)\\
 \label{eq:scoring_rue}
 \end{align}
 
-(expliquer ces équations)
+This model is designed to predict football match scores, where $(X_i, Y_i)$ represent the number of goals scored by the home team and the away team, respectively, in match i. 
 
 Model fitting has been obtained through the Hamiltonian Monte Carlo sampling, 2000 iterations, 4 chains using the ```footBayes``` \texttt{R} package (with the underlying ```rstan``` package). 
 
@@ -59,6 +59,11 @@ source("ranking_preprocessing.R")
 ```{r, include=FALSE}
 # Exécute le script et charge tout son contenu
 source("ranking2025_11_19_preprocessing.R")
+```
+
+```{r, include=FALSE}
+# Exécute le script et charge tout son contenu
+source("ranking2026_06_11_preprocessing.R")
 ```
 
 ```{r, include=FALSE}
@@ -374,35 +379,35 @@ results_footBayes_ready <- results_footBayes %>%
 ## The Double Poisson model
 
 ```{r}
-double_poisson <- stan_foot(
-  data = results_footBayes_ready,
-  model = "double_pois",
-  predict = 72,
-  ranking = ranking_footBayes,
-  dynamic_type = "seasonal",
-  home_effect = FALSE,
-  chains = 4,
-  iter_sampling = 1000,
-  iter_warmup = 1000,
-  seed = 123
-)
+# double_poisson <- stan_foot(
+#  data = results_footBayes_ready,
+#  model = "double_pois",
+#  predict = 72,
+#  ranking = ranking_footBayes,
+#  dynamic_type = "seasonal",
+#  home_effect = FALSE,
+#  chains = 4,
+#  iter_sampling = 1000,
+#  iter_warmup = 1000,
+#  seed = 123
+#)
 ```
 
 ```{r}
-prob_double_poisson <- foot_prob(object = double_poisson, data = results_footBayes_ready)
+# prob_double_poisson <- foot_prob(object = double_poisson, data = results_footBayes_ready)
 ```
 
 ```{r}
-colnames(prob_double_poisson$prob_table) <- c(
-      "home",
-      "away",
-      "home win",
-      "draw",
-      "away win",
-      "mlo"
-    )
+# colnames(prob_double_poisson$prob_table) <- c(
+#      "home",
+#      "away",
+#      "home win",
+#      "draw",
+#      "away win",
+#      "mlo"
+#    )
 
-prob_double_poisson$prob_table
+# prob_double_poisson$prob_table
 ```
 
 
@@ -411,11 +416,16 @@ prob_double_poisson$prob_table
 ```{r}
 groupstage1 <- results_footBayes_ready[1:(nrow(results_footBayes_ready) - 48), ]
 
+teams <- unique(c(groupstage1$home_team, groupstage1$away_team))
+
+ranking_footBayes_clean <- ranking_footBayes %>%
+  filter(team %in% teams)
+
 diag_infl <- stan_foot(
   data = groupstage1,
   model = "diag_infl_biv_pois",
   predict = 24,
-  ranking = ranking_footBayes,
+  ranking = ranking_footBayes_clean,
   dynamic_type = "seasonal",
   init = 0,
   home_effect = FALSE,
@@ -445,7 +455,7 @@ prob_diag_infl$prob_table
 
 ```{r}
 write.csv(prob_diag_infl$prob_table, 
-          file = "results/groupstage1_diag_infl_biv_pois.csv", 
+          file = "results/groupstage1_diag_infl_biv_pois2.csv", 
           row.names = FALSE)
 ```
 
@@ -525,7 +535,7 @@ p
 ```
 
 ```{r}
-ggsave("results/plot_diag_infl.png", plot = p, width = 20, height = 15, dpi = 300)
+ggsave("results/plot_diag_infl2.png", plot = p, width = 20, height = 15, dpi = 300)
 ```
 
 Posterior  matches probabilities from the posterior predictive distribution of the model above are displayed in the table below. **mlo** denotes the most likely exact outcome (in parenthesis, the corresponding posterior probability). Darker regions in the plots below denote more likely outcomes: on the $x$-axis the home goals, on the $y$-axis the away goals. 
