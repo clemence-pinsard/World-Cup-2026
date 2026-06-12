@@ -42,17 +42,17 @@ library(stringi)
 
 ```{r, include=FALSE}
 # Exécute le script et charge tout son contenu
-source("ranking_preprocessing.R")
+source("codes/ranking_preprocessing.R")
 ```
 
 ```{r, include=FALSE}
 # Exécute le script et charge tout son contenu
-source("ranking2025_11_19_preprocessing.R")
+source("codes/ranking2025_11_19_preprocessing.R")
 ```
 
 ```{r, include=FALSE}
 # Exécute le script et charge tout son contenu
-source("results_preprocessing.R")
+source("codes/results_preprocessing.R")
 ```
 
 ```{r}
