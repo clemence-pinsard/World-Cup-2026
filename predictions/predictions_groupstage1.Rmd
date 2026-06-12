@@ -53,22 +53,22 @@ The idea is to provide a dynamic predictive scenario: at the end of each match-d
 
 ```{r, include=FALSE}
 # Exécute le script et charge tout son contenu
-source("ranking_preprocessing.R")
+source("codes/ranking_preprocessing.R")
 ```
 
 ```{r, include=FALSE}
 # Exécute le script et charge tout son contenu
-source("ranking2025_11_19_preprocessing.R")
+source("codes/ranking2025_11_19_preprocessing.R")
 ```
 
 ```{r, include=FALSE}
 # Exécute le script et charge tout son contenu
-source("ranking2026_06_11_preprocessing.R")
+source("codes/ranking2026_06_11_preprocessing.R")
 ```
 
 ```{r, include=FALSE}
 # Exécute le script et charge tout son contenu
-source("results_preprocessing.R")
+source("codes/results_preprocessing.R")
 ```
 
 ```{r}
@@ -517,15 +517,15 @@ for (old in names(new_names)) {
   p$data$new_matches <- gsub(old, new_names[old], p$data$new_matches, ignore.case = TRUE)
 }
 
-p$theme$axis.text.x$size <- 4
-p$theme$axis.text.y$size <- 4
-p$theme$axis.title$size  <- 8
-p$theme$strip.text$size  <- 6 
+p$theme$axis.text.x$size <- 10
+p$theme$axis.text.y$size <- 10
+p$theme$axis.title$size  <- 10
+p$theme$strip.text$size  <- 10 
 
 p <- p + theme(
-  strip.text = element_text(size = 6, face = "bold"),  
-  axis.text  = element_text(size = 4),                 
-  axis.title = element_text(size = 8, face = "bold"), 
+  strip.text = element_text(size = 10, face = "bold"),  
+  axis.text  = element_text(size = 10),                 
+  axis.title = element_text(size = 10, face = "bold"), 
   plot.title = element_text(size = 14, face = "bold") 
 )
 
