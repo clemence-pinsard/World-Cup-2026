@@ -72,7 +72,7 @@ source("codes/results_preprocessing.R")
 ```
 
 ```{r}
-ranking <- rbind(ranking, ranking2025_11_19)
+ranking <- rbind(ranking, ranking2025_11_19, ranking2026_06_11)
 ```
 
 
@@ -379,35 +379,36 @@ results_footBayes_ready <- results_footBayes %>%
 ## The Double Poisson model
 
 ```{r}
-# double_poisson <- stan_foot(
-#  data = results_footBayes_ready,
-#  model = "double_pois",
-#  predict = 72,
-#  ranking = ranking_footBayes,
-#  dynamic_type = "seasonal",
-#  home_effect = FALSE,
-#  chains = 4,
-#  iter_sampling = 1000,
-#  iter_warmup = 1000,
-#  seed = 123
-#)
+double_poisson2 <- stan_foot(
+  data = groupstage1,
+  model = "double_pois",
+  predict = 24,
+  init = 0,
+  ranking = ranking_footBayes_clean,
+  dynamic_type = "seasonal",
+  home_effect = FALSE,
+  chains = 4,
+  iter_sampling = 1000,
+  iter_warmup = 1000,
+  seed = 123
+)
 ```
 
 ```{r}
-# prob_double_poisson <- foot_prob(object = double_poisson, data = results_footBayes_ready)
+prob_double_poisson2 <- foot_prob(object = double_poisson2, data = results_footBayes_ready)
 ```
 
 ```{r}
-# colnames(prob_double_poisson$prob_table) <- c(
-#      "home",
-#      "away",
-#      "home win",
-#      "draw",
-#      "away win",
-#      "mlo"
-#    )
+colnames(prob_double_poisson2$prob_table) <- c(
+      "home",
+      "away",
+      "home win",
+      "draw",
+      "away win",
+      "mlo"
+    )
 
-# prob_double_poisson$prob_table
+prob_double_poisson2$prob_table
 ```
 
 
