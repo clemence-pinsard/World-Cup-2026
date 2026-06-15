@@ -1,0 +1,242 @@
+---
+title: "Predictions groupstage2"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# The theory
+
+We use a **diagonal-inflated Bivariate-Poisson model with dynamic team-specific abilities** for the attack and the defence. Let $(X_{i}, Y_{i})$ denote the random number of goals scored by the home and the away team in the $i$-th game, $i=1,\ldots,n$, respectively. $\mathsf{ranking}$ denotes the latest Coca-Cola FIFA ranking available for each team prior to the match being played, whereas att and def denote the attack and the defence abilities, respectively.
+
+\begin{align}
+(X_i, Y_i) &\ \sim \ \begin{cases} (1-p) \text{BP}(x_i, y_i |\lambda_1, \lambda_2, \lambda_3) \ \ \ & \text{if} \    x \ne y \\ (1-p) \text{BP}(x_i, y_i | \lambda_1, \lambda_2, \lambda_3) + pD(x, \eta) \ \ \ & \text{if} \   x = y, \end{cases}, \\
+\log(\lambda_{1i}) &=\    \text{att}_{h_i, t}+ \text{def}_{a_i,t} + \frac{\gamma}{2}(\mathsf{ranking}_{h_i,t}-\mathsf{ranking}_{a_i,t}) \\
+\log(\lambda_{2i}) & =\    \text{att}_{a_i,t} + \text{def}_{h_i,t} - \frac{\gamma}{2}(\mathsf{ranking}_{h_i,t}-\mathsf{ranking}_{a_i}), \ \ i=1,\ldots,n\ (\text{matches}), \\
+\log(\lambda_{3i}) & =\ \rho,\\
+\text{att}_{k, t}&  \sim \ \mathcal{N}(\text{att}_{k, t-1}, \sigma^2), \\
+\text{def}_{k, t} & \sim \  \mathcal{N}(\text{def}_{k, t-1}, \sigma^2),\\
+\rho, \ \gamma & \sim \mathcal{N}(0,1) \\
+p & \sim \text{Uniform}(0,1)\\
+& \sum_{k=1}^{n_t} \text{att}_{k, }=0, \  \sum_{k=1}^{n_t}\text{def}_{k, }=0, \ \ k=1,\ldots n_t \ (\text{teams}), \  t=1,\ldots, T \ (\text{times}).
+\label{eq:scoring_rue}
+\end{align}
+
+This model is designed to predict football match scores, where $(X_i, Y_i)$ represent the number of goals scored by the home team and the away team, respectively, in match i. 
+
+Model fitting has been obtained through the Hamiltonian Monte Carlo sampling, 2000 iterations, 4 chains using the ```footBayes``` \texttt{R} package (with the underlying ```rstan``` package). 
+
+The historical data used to fit the models come from *all the international matches played since the 1st of January 2022*, both for the games and the ranking (the oldest ranking used is the one of the 23rd of December 2021).
+
+The idea is to provide a dynamic predictive scenario: at the end of each match-day, the model will be refitted  to predict the remaining matches. So for now, we have started by making predictions only for the first matchday of the group stage. 
+
+# The data
+
+## The results of groupstage1
+
+```{r}
+results_groupstage1 <- data.frame(
+  periods    = rep(31, 24),   
+  home_team  = c("MEXICO","SOUTHKOREA","CANADA","UNITEDSTATES",
+                 "QATAR","BRAZIL","HAITI","AUSTRALIA",
+                 "GERMANY", "NETHERLANDS","IVORYCOAST","SWEDEN",
+                 "SPAIN","BELGIUM","SAUDIARABIA","IRAN",
+                 "FRANCE","IRAQ","ARGENTINA","AUSTRIA",
+                 "PORTUGAL","ENGLAND","GHANA","UZBEKISTAN"),
+  home_goals = c(2,2,1,4,1,1,0,2,
+                 7,2,1,5,NA,NA,NA,NA,
+                 NA,NA,NA,NA,NA,NA,NA,NA), 
+  away_team  = c("SOUTHAFRICA","CZECHREPUBLIC","BOSNIAANDHERZEGOVINA","PARAGUAY",
+                 "SWITZERLAND","MOROCCO","SCOTLAND","TURKEY",
+                 "CURACAO", "JAPAN","ECUADOR","TUNISIA",
+                 "CAPEVERDE","EGYPT","URUGUAY","NEWZEALAND",
+                 "SENEGAL","NORWAY","ALGERIA","JORDAN",
+                 "DRCONGO","CROATIA","PANAMA","COLOMBIA"),
+  away_goals = c(0,1,1,1,1,1,1,0,
+                 1,2,0,1,NA,NA,NA,NA,
+                 NA,NA,NA,NA,NA,NA,NA,NA)
+)
+```
+
+## Games of groupstage2
+
+```{r}
+games_groupstage2 <- data.frame(
+  periods    = rep(31,24),
+  home_team  = c("CZECHREPUBLIC","SWITZERLAND","CANADA","MEXICO",
+                 "UNITEDSTATES","SCOTLAND","BRAZIL","TURKEY",
+                 "NETHERLANDS","GERMANY","ECUADOR","TUNISIA",
+                 "SPAIN","BELGIUM","URUGUAY","NEWZEALAND",
+                 "ARGENTINA","FRANCE","NORWAY","JORDAN",
+                 "PORTUGAL","ENGLAND","PANAMA","COLOMBIA"),
+  home_goals = rep(NA,24),
+  away_team  = c("SOUTHAFRICA","BOSNIAANDHERZEGOVINA","QATAR","SOUTHKOREA",
+                 "AUSTRALIA","MOROCCO","HAITI","PARAGUAY",
+                 "SWEDEN","IVORYCOAST","CURACAO","JAPAN",
+                 "SAUDIARABIA","IRAN","CAPEVERDE","EGYPT",
+                 "AUSTRIA","IRAQ","SENEGAL","ALGERIA",
+                 "UZBEKISTAN","GHANA","CROATIA","DRCONGO"),
+  away_goals = rep(NA,24)
+)
+```
+
+## Final groupstage2
+
+```{r}
+groupstage2 <- rbind(
+  groupstage1[1:(nrow(groupstage1) - 24), ],  
+  results_groupstage1,
+  games_groupstage2
+)
+```
+
+
+# The predictions
+
+## Initialisation of the paramters
+
+```{r}
+# Extraction of the postreriors
+draws_df <- diag_infl_j1$fit$draws(format = "draws_df")
+
+n_chains <- 4
+
+inits_j2 <- lapply(1:n_chains, function(c) {
+  draw_idx <- sample(nrow(draws_df), 1)
+  
+  list(
+    rho    = as.numeric(draws_df[draw_idx, "rho"]),
+    gamma  = as.numeric(draws_df[draw_idx, "gamma"]),
+    p      = as.numeric(draws_df[draw_idx, "p"]),
+    att    = as.numeric(draws_df[draw_idx, grep("^att\\[", colnames(draws_df))]),
+    def    = as.numeric(draws_df[draw_idx, grep("^def\\[", colnames(draws_df))])
+  )
+})
+```
+
+## The predictions
+
+```{r}
+groupstage2_teams <- unique(c(groupstage2$home_team, groupstage2$away_team))
+
+ranking_footBayes_clean2 <- ranking_footBayes %>%
+  filter(team %in% groupstage2_teams)
+```
+
+```{r}
+diag_infl_j2 <- stan_foot(
+  data          = groupstage2,
+  model         = "diag_infl_biv_pois",
+  predict       = 24,              
+  ranking       = ranking_footBayes_clean2,
+  dynamic_type  = "seasonal",
+  init          = inits_j2,       
+  home_effect   = FALSE,
+  chains        = 4,
+  iter_sampling = 1000,
+  iter_warmup   = 500,            
+  seed          = 456
+)
+```
+
+```{r}
+prob_diag_infl_j2 <- foot_prob(object = diag_infl_j2, data = groupstage2)
+```
+
+```{r}
+colnames(prob_diag_infl_j2$prob_table) <- c(
+      "home",
+      "away",
+      "home win",
+      "draw",
+      "away win",
+      "mlo"
+    )
+```
+
+```{r}
+write.csv(prob_diag_infl_j2$prob_table, 
+          file = "results/groupstage2_diag_infl_biv_pois.csv", 
+          row.names = FALSE)
+```
+
+```{r}
+new_names <- c(
+  "MEXICO"          = "Mexico",
+  "SOUTHKOREA"      = "South Korea",
+  "CANADA"            = "Canada",
+  "UNITEDSTATES"      = "United States",
+  "QATAR"      = "Qatar",
+  "BRAZIL"           = "Brazil",
+  "HAITI"            = "Haiti",
+  "AUSTRALIA"    = "Australia",
+  "GERMANY"      = "Germany",
+  "IVORYCOAST"          = "Ivory Coast",
+  "NETHERLANDS"            = "Netherlands",
+  "SWEDEN"          = "Sweden",
+  "BELGIUM"           = "Belgium",
+  "IRAN"          = "Iran",
+  "SPAIN"           = "Spain",
+  "SAUDIARABIA"           = "Saudi Arabia",
+  "FRANCE"          = "France",
+  "IRAQ"          = "Iraq", 
+  "ARGENTINA"          = "Argentina",
+  "AUSTRIA"        = "Austria",
+  "PORTUGAL"           = "Portugal",
+  "UZBEKISTAN"      = "Uzbekistan",
+  "ENGLAND"   = "England",
+  "GHANA"         = "Ghana",
+  "CZECHREPUBLIC"         = "Czech Republic",
+  "SWITZERLAND"          = "Switzerland",
+  "SCOTLAND"           = "Scotland",
+  "TURKEY"         = "Turkey",
+  "ECUADOR"            = "Ecuador",
+  "TUNISIA"        = "Tunisia",
+  "NEWZEALAND"          = "New Zealand",
+  "URUGUAY"         = "Uruguay",
+  "NORWAY"       = "Norway",
+  "JORDAN"          = "Jordan",
+  "COLOMBIA"     = "Colombia",
+  "PANAMA"          = "Panama",
+  "SOUTHAFRICA"     = "South Africa",
+  "BOSNIAANDHERZEGOVINA"           = "Bosnia and Herzegovina",
+  "MOROCCO"             = "Morocco",
+  "PARAGUAY"       = "Paraguay",
+  "CURACAO" = "Curacao",
+  "JAPAN" = "Japan",
+  "EGYPT" = "Egypt",
+  "CAPEVERDE" = "Cape Verde",
+  "SENEGAL" = "Senegal",
+  "ALGERIA" = "Algeria",
+  "DRCONGO" = "DR Congo",
+  "CROATIA" = "Croatia"
+)
+
+p_j2 <- prob_diag_infl_j2$prob_plot
+
+for (old in names(new_names)) {
+  p_j2$data$new_matches <- gsub(old, new_names[old], p_j2$data$new_matches, ignore.case = TRUE)
+}
+
+p_j2$theme$axis.text.x$size <- 10
+p_j2$theme$axis.text.y$size <- 10
+p_j2$theme$axis.title$size  <- 10
+p_j2$theme$strip.text$size  <- 10 
+
+p_j2 <- p_j2 + theme(
+  strip.text = element_text(size = 10, face = "bold"),  
+  axis.text  = element_text(size = 10),                 
+  axis.title = element_text(size = 10, face = "bold"), 
+  plot.title = element_text(size = 14, face = "bold") 
+)
+
+p_j2 <- p_j2 + guides(color = "none")
+```
+
+```{r}
+ggsave("results/plot_diag_infl_j2.png", plot = p_j2, width = 20, height = 15, dpi = 300)
+```
+
+

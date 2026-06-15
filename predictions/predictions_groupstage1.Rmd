@@ -544,6 +544,9 @@ ggsave("results/plot_diag_infl2.png", plot = p, width = 20, height = 15, dpi = 3
 
 Posterior  matches probabilities from the posterior predictive distribution of the model above are displayed in the table below. **mlo** denotes the most likely exact outcome (in parenthesis, the corresponding posterior probability). Darker regions in the plots below denote more likely outcomes: on the $x$-axis the home goals, on the $y$-axis the away goals. 
 
+```{r}
+saveRDS(diag_infl, file = "results/diag_infl_groupstage1.rds")
+```
 
 
 
