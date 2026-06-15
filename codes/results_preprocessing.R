@@ -1,4 +1,4 @@
-results_raw <- read_csv("data/results.csv",
+results_raw <- read_csv("~/work/World-Cup-2026/data/results.csv",
                         locale = locale(encoding = "latin1"),
                         show_col_types = FALSE)
 

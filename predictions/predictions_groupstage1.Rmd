@@ -53,22 +53,22 @@ The idea is to provide a dynamic predictive scenario: at the end of each match-d
 
 ```{r, include=FALSE}
 # Exécute le script et charge tout son contenu
-source("codes/ranking_preprocessing.R")
+source("~/work/World-Cup-2026/codes/ranking_preprocessing.R")
 ```
 
 ```{r, include=FALSE}
 # Exécute le script et charge tout son contenu
-source("codes/ranking2025_11_19_preprocessing.R")
+source("~/work/World-Cup-2026/codes/ranking2025_11_19_preprocessing.R")
 ```
 
 ```{r, include=FALSE}
 # Exécute le script et charge tout son contenu
-source("codes/ranking2026_06_11_preprocessing.R")
+source("~/work/World-Cup-2026/codes/ranking2026_06_11_preprocessing.R")
 ```
 
 ```{r, include=FALSE}
 # Exécute le script et charge tout son contenu
-source("codes/results_preprocessing.R")
+source("~/work/World-Cup-2026/codes/results_preprocessing.R")
 ```
 
 ```{r}
@@ -421,7 +421,10 @@ teams <- unique(c(groupstage1$home_team, groupstage1$away_team))
 
 ranking_footBayes_clean <- ranking_footBayes %>%
   filter(team %in% teams)
+```
 
+
+```{r}
 diag_infl <- stan_foot(
   data = groupstage1,
   model = "diag_infl_biv_pois",

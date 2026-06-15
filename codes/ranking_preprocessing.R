@@ -1,4 +1,4 @@
-ranking_raw <- read_csv("data/ranking_fifa_historical.csv",
+ranking_raw <- read_csv("~/work/World-Cup-2026/data/ranking_fifa_historical.csv",
                         locale = locale(encoding = "latin1"),
                         show_col_types = FALSE)
 

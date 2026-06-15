@@ -1,4 +1,4 @@
-ranking2026_06_11_raw <- read_csv("data/ranking_2026_06_11.txt",
+ranking2026_06_11_raw <- read_csv("~/work/World-Cup-2026/data/ranking_2026_06_11.txt",
                                   locale = locale(encoding = "latin1"),
                                   show_col_types = FALSE)
 
