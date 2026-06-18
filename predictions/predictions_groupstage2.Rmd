@@ -30,7 +30,7 @@ Model fitting has been obtained through the Hamiltonian Monte Carlo sampling, 20
 
 The historical data used to fit the models come from *all the international matches played since the 1st of January 2022*, both for the games and the ranking (the oldest ranking used is the one of the 23rd of December 2021).
 
-The idea is to provide a dynamic predictive scenario: at the end of each match-day, the model will be refitted  to predict the remaining matches. So for now, we have started by making predictions only for the first matchday of the group stage. 
+The idea is to provide a dynamic predictive scenario: at the end of each match-day, the model will be refitted  to predict the remaining matches. So for now, we have started by making predictions only for the second matchday of the group stage. 
 
 # The data
 
@@ -38,47 +38,46 @@ The idea is to provide a dynamic predictive scenario: at the end of each match-d
 
 ```{r}
 results_groupstage1 <- data.frame(
-  periods    = rep(31, 24),   
+  periods    = rep(31, 20),   
   home_team  = c("MEXICO","SOUTHKOREA","CANADA","UNITEDSTATES",
                  "QATAR","BRAZIL","HAITI","AUSTRALIA",
                  "GERMANY", "NETHERLANDS","IVORYCOAST","SWEDEN",
                  "SPAIN","BELGIUM","SAUDIARABIA","IRAN",
-                 "FRANCE","IRAQ","ARGENTINA","AUSTRIA",
-                 "PORTUGAL","ENGLAND","GHANA","UZBEKISTAN"),
+                 "FRANCE", "IRAQ", "ARGENTINA", "AUSTRIA"),
   home_goals = c(2,2,1,4,1,1,0,2,
-                 7,2,1,5,NA,NA,NA,NA,
-                 NA,NA,NA,NA,NA,NA,NA,NA), 
+                 4,2,1,5,0,1,1,2,
+                 3, 0, 3, 3), 
   away_team  = c("SOUTHAFRICA","CZECHREPUBLIC","BOSNIAANDHERZEGOVINA","PARAGUAY",
                  "SWITZERLAND","MOROCCO","SCOTLAND","TURKEY",
                  "CURACAO", "JAPAN","ECUADOR","TUNISIA",
                  "CAPEVERDE","EGYPT","URUGUAY","NEWZEALAND",
-                 "SENEGAL","NORWAY","ALGERIA","JORDAN",
-                 "DRCONGO","CROATIA","PANAMA","COLOMBIA"),
+                 "SENEGAL", "NORWAY", "ALGERIA", "JORDAN"),
   away_goals = c(0,1,1,1,1,1,1,0,
-                 1,2,0,1,NA,NA,NA,NA,
-                 NA,NA,NA,NA,NA,NA,NA,NA)
+                 1,2,0,1,0,1,1,2,
+                 1, 2, 0, 1)
 )
 ```
 
 ## Games of groupstage2
 
 ```{r}
+# Nouvelle période (32) pour les matchs du groupstage2
 games_groupstage2 <- data.frame(
-  periods    = rep(31,24),
+  periods    = rep(32, 24),
   home_team  = c("CZECHREPUBLIC","SWITZERLAND","CANADA","MEXICO",
                  "UNITEDSTATES","SCOTLAND","BRAZIL","TURKEY",
                  "NETHERLANDS","GERMANY","ECUADOR","TUNISIA",
                  "SPAIN","BELGIUM","URUGUAY","NEWZEALAND",
                  "ARGENTINA","FRANCE","NORWAY","JORDAN",
                  "PORTUGAL","ENGLAND","PANAMA","COLOMBIA"),
-  home_goals = rep(NA,24),
+  home_goals = rep(NA, 24),
   away_team  = c("SOUTHAFRICA","BOSNIAANDHERZEGOVINA","QATAR","SOUTHKOREA",
                  "AUSTRALIA","MOROCCO","HAITI","PARAGUAY",
                  "SWEDEN","IVORYCOAST","CURACAO","JAPAN",
                  "SAUDIARABIA","IRAN","CAPEVERDE","EGYPT",
                  "AUSTRIA","IRAQ","SENEGAL","ALGERIA",
                  "UZBEKISTAN","GHANA","CROATIA","DRCONGO"),
-  away_goals = rep(NA,24)
+  away_goals = rep(NA, 24)
 )
 ```
 
@@ -92,26 +91,121 @@ groupstage2 <- rbind(
 )
 ```
 
+```{r}
+# Équipes du modèle 2
+groupstage2_teams <- unique(c(groupstage2$home_team, groupstage2$away_team))
+
+# Ranking filtré sur les équipes du modèle 2, avec fill sur les périodes manquantes
+ranking_footBayes_clean2 <- ranking_footBayes %>%
+  filter(team %in% groupstage2_teams) %>%
+  arrange(team, periods) %>%
+  group_by(team) %>%
+  fill(rank_points, .direction = "down") %>%
+  ungroup()
+```
+
+```{r}
+equipes_ranking <- unique(ranking_footBayes_clean2$team)
+
+groupstage2 <- groupstage2 %>%
+  filter(home_team %in% equipes_ranking,
+         away_team %in% equipes_ranking)
+```
+
+```{r}
+teams <- unique(c(groupstage2$home_team, groupstage2$away_team))
+
+ranking_footBayes_clean <- ranking_footBayes_clean2 %>%
+  filter(team %in% teams)
+```
 
 # The predictions
 
-## Initialisation of the paramters
+## Initialisation of the parameters
 
 ```{r}
-# Extraction of the postreriors
-draws_df <- diag_infl_j1$fit$draws(format = "draws_df")
+diag_infl <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_groupstage1.rds")
+```
+
+```{r}
+# Extraction of the posteriors
+draws_df <- diag_infl$fit$draws(format = "draws_df")
 
 n_chains <- 4
 
+# Équipes du modèle 1 (ordre alphabétique = ordre interne footBayes)
+teams_m1 <- sort(unique(c(groupstage1$home_team, groupstage1$away_team)))
+# Équipes du modèle 2
+teams_m2 <- sort(unique(c(groupstage2$home_team, groupstage2$away_team)))
+# Équipes communes et leurs indices dans chaque modèle
+common_teams <- intersect(teams_m1, teams_m2)
+idx_in_m1    <- which(teams_m1 %in% common_teams)
+idx_in_m2    <- which(teams_m2 %in% common_teams)
+n_teams_m2   <- length(teams_m2)
+
+# Colonnes att/def dans le draws_df
+att_cols <- grep("^att_raw_centered\\[", colnames(draws_df), value = TRUE)
+def_cols <- grep("^def_raw_centered\\[", colnames(draws_df), value = TRUE)
+
+# Extraction des indices [i,j] depuis les noms de colonnes Stan
+# Dans Stan : att_raw_centered[period, team]
+extract_ij <- function(cols) {
+  idx_str <- regmatches(cols, regexpr("\\d+,\\d+", cols))
+  i <- as.integer(sub(",.*", "", idx_str))
+  j <- as.integer(gsub("\\]", "", sub(".*,", "", idx_str)))
+  list(i = i, j = j, nrow = max(i), ncol = max(j))
+}
+
+ij_att <- extract_ij(att_cols)
+ij_def <- extract_ij(def_cols)
+
+# i = period index, j = team index (ordre réel dans Stan)
+n_periods_m1 <- ij_att$nrow
+n_teams_m1   <- ij_att$ncol
+
+cat("Modèle 1 : n_teams =", n_teams_m1, " | n_periods =", n_periods_m1, "\n")
+cat("Attendu teams_m1 :", length(teams_m1), "\n")
+
+# Nombre de périodes du modèle 2
+n_periods_m2 <- max(groupstage2$periods)
+cat("Modèle 2 : n_periods =", n_periods_m2, "\n")
+
+# Reconstruction d'une matrice [n_periods, n_teams] depuis un draw
+parse_matrix <- function(cols, ij, draws_row) {
+  mat <- matrix(0, nrow = ij$nrow, ncol = ij$ncol)
+  for (k in seq_along(cols)) mat[ij$i[k], ij$j[k]] <- as.numeric(draws_row[[cols[k]]])
+  mat
+}
+
 inits_j2 <- lapply(1:n_chains, function(c) {
-  draw_idx <- sample(nrow(draws_df), 1)
+  draw_idx  <- sample(nrow(draws_df), 1)
+  draws_row <- draws_df[draw_idx, ]
+  
+  att_m1 <- parse_matrix(att_cols, ij_att, draws_row)  # [n_periods_m1, n_teams_m1]
+  def_m1 <- parse_matrix(def_cols, ij_def, draws_row)
+  
+  # Matrices pour le modèle 2 : [n_periods_m2, n_teams_m2]
+  att_m2 <- matrix(0, nrow = n_periods_m2, ncol = n_teams_m2)
+  def_m2 <- matrix(0, nrow = n_periods_m2, ncol = n_teams_m2)
+  
+  # Transfert des périodes communes pour les équipes communes
+  att_m2[1:n_periods_m1, idx_in_m2] <- att_m1[1:n_periods_m1, idx_in_m1]
+  def_m2[1:n_periods_m1, idx_in_m2] <- def_m1[1:n_periods_m1, idx_in_m1]
+  
+  # Période(s) supplémentaire(s) : prolongation avec la dernière période connue
+  for (t in (n_periods_m1 + 1):n_periods_m2) {
+    att_m2[t, idx_in_m2] <- att_m1[n_periods_m1, idx_in_m1]
+    def_m2[t, idx_in_m2] <- def_m1[n_periods_m1, idx_in_m1]
+  }
   
   list(
-    rho    = as.numeric(draws_df[draw_idx, "rho"]),
-    gamma  = as.numeric(draws_df[draw_idx, "gamma"]),
-    p      = as.numeric(draws_df[draw_idx, "p"]),
-    att    = as.numeric(draws_df[draw_idx, grep("^att\\[", colnames(draws_df))]),
-    def    = as.numeric(draws_df[draw_idx, grep("^def\\[", colnames(draws_df))])
+    att_raw_centered = att_m2,
+    def_raw_centered = def_m2,
+    rho           = as.numeric(draws_row[["rho"]]),
+    gamma         = as.numeric(draws_row[["gamma"]]),
+    sigma_att     = as.numeric(draws_row[["sigma_att[1]"]]),
+    sigma_def     = as.numeric(draws_row[["sigma_def[1]"]]),
+    prob_of_draws = as.numeric(draws_row[["prob_of_draws"]])
   )
 })
 ```
@@ -119,22 +213,15 @@ inits_j2 <- lapply(1:n_chains, function(c) {
 ## The predictions
 
 ```{r}
-groupstage2_teams <- unique(c(groupstage2$home_team, groupstage2$away_team))
-
-ranking_footBayes_clean2 <- ranking_footBayes %>%
-  filter(team %in% groupstage2_teams)
-```
-
-```{r}
-diag_infl_j2 <- stan_foot(
+diag_infl_j2_priors <- stan_foot(
   data          = groupstage2,
   model         = "diag_infl_biv_pois",
   predict       = 24,              
-  ranking       = ranking_footBayes_clean2,
+  ranking       = ranking_footBayes_clean,
   dynamic_type  = "seasonal",
   init          = inits_j2,       
   home_effect   = FALSE,
-  chains        = 4,
+  chains        = 4, parallel_chains = 4,
   iter_sampling = 1000,
   iter_warmup   = 500,            
   seed          = 456
@@ -142,11 +229,11 @@ diag_infl_j2 <- stan_foot(
 ```
 
 ```{r}
-prob_diag_infl_j2 <- foot_prob(object = diag_infl_j2, data = groupstage2)
+prob_diag_infl_j2_priors <- foot_prob(object = diag_infl_j2_priors, data = groupstage2)
 ```
 
 ```{r}
-colnames(prob_diag_infl_j2$prob_table) <- c(
+colnames(prob_diag_infl_j2_priors$prob_table) <- c(
       "home",
       "away",
       "home win",
@@ -154,11 +241,13 @@ colnames(prob_diag_infl_j2$prob_table) <- c(
       "away win",
       "mlo"
     )
+
+prob_diag_infl_j2_priors$prob_table
 ```
 
 ```{r}
-write.csv(prob_diag_infl_j2$prob_table, 
-          file = "results/groupstage2_diag_infl_biv_pois.csv", 
+write.csv(prob_diag_infl_j2_priors$prob_table, 
+          file = "~/work/World-Cup-2026/results/groupstage2_diag_infl_biv_pois.csv", 
           row.names = FALSE)
 ```
 
@@ -214,29 +303,33 @@ new_names <- c(
   "CROATIA" = "Croatia"
 )
 
-p_j2 <- prob_diag_infl_j2$prob_plot
+p_j2_priors <- prob_diag_infl_j2_priors$prob_plot
 
 for (old in names(new_names)) {
-  p_j2$data$new_matches <- gsub(old, new_names[old], p_j2$data$new_matches, ignore.case = TRUE)
+  p_j2_priors$data$new_matches <- gsub(old, new_names[old], p_j2_priors$data$new_matches, ignore.case = TRUE)
 }
 
-p_j2$theme$axis.text.x$size <- 10
-p_j2$theme$axis.text.y$size <- 10
-p_j2$theme$axis.title$size  <- 10
-p_j2$theme$strip.text$size  <- 10 
+p_j2_priors$theme$axis.text.x$size <- 10
+p_j2_priors$theme$axis.text.y$size <- 10
+p_j2_priors$theme$axis.title$size  <- 10
+p_j2_priors$theme$strip.text$size  <- 10 
 
-p_j2 <- p_j2 + theme(
+p_j2_priors <- p_j2_priors + theme(
   strip.text = element_text(size = 10, face = "bold"),  
   axis.text  = element_text(size = 10),                 
   axis.title = element_text(size = 10, face = "bold"), 
   plot.title = element_text(size = 14, face = "bold") 
 )
 
-p_j2 <- p_j2 + guides(color = "none")
+p_j2_priors <- p_j2_priors + guides(color = "none")
+
+p_j2_priors
 ```
 
 ```{r}
-ggsave("results/plot_diag_infl_j2.png", plot = p_j2, width = 20, height = 15, dpi = 300)
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_j2_priors.png", plot = p_j2_priors, width = 20, height = 15, dpi = 300)
 ```
 
-
+```{r}
+saveRDS(diag_infl_j2_priors, file = "~/work/World-Cup-2026/results/diag_infl_groupstage2_priors.rds")
+```

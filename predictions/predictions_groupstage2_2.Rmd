@@ -1,5 +1,5 @@
 ---
-title: "Predictions"
+title: "Predictions - Groupstage2 without priors"
 output: pdf_document
 ---
 
@@ -72,7 +72,7 @@ source("~/work/World-Cup-2026/codes/results_preprocessing.R")
 ```
 
 ```{r}
-ranking <- rbind(ranking, ranking2025_11_19)
+ranking <- rbind(ranking, ranking2025_11_19, ranking2026_06_11)
 ```
 
 
@@ -229,6 +229,21 @@ ranking_footBayes <- data.frame(
 )
 ```
 
+```{r}
+n_periodes <- n_distinct(ranking_footBayes$periods)
+groupstage2_teams <- unique(c(groupstage1$home_team, groupstage1$away_team))
+
+equipes_completes <- ranking_footBayes %>%
+  group_by(team) %>%
+  summarise(n_periodes_team = n_distinct(periods)) %>%
+  filter(n_periodes_team == n_periodes) %>%
+  pull(team)
+
+ranking_footBayes_clean2 <- ranking_footBayes %>%
+  filter(team %in% groupstage2_teams,
+         team %in% equipes_completes)
+```
+
 ## Formatting of results
 
 ```{r}
@@ -374,59 +389,85 @@ results_footBayes_ready <- results_footBayes %>%
   select(periods, home_team, home_goals, away_team, away_goals)
 ```
 
-# The predictions for the first day of groupstage ()
-
-## The Double Poisson model
-
-```{r}
-#double_poisson2 <- stan_foot(
-#  data = groupstage1,
-#  model = "double_pois",
-#  predict = 24,
-#  init = 0,
-#  ranking = ranking_footBayes_clean,
-#  dynamic_type = "seasonal",
-#  home_effect = FALSE,
-#  chains = 4,
-#  iter_sampling = 1000,
-#  iter_warmup = 1000,
-#  seed = 123
-#)
-```
-
-```{r}
-# prob_double_poisson2 <- foot_prob(object = double_poisson2, data = results_footBayes_ready)
-```
-
-```{r}
-# colnames(prob_double_poisson2$prob_table) <- c(
-#       "home",
-#       "away",
-#       "home win",
-#       "draw",
-#       "away win",
-#       "mlo"
-#     )
-
-# prob_double_poisson2$prob_table
-```
+# The predictions for the first day of groupstage 2
 
 
 ## The Diaginal Inflated Bivariate Poisson model 
 
 ```{r}
-groupstage1 <- results_footBayes_ready[1:(nrow(results_footBayes_ready) - 48), ]
+results_groupstage1 <- data.frame(
+  periods    = rep(31, 24),   
+  home_team  = c("MEXICO","SOUTHKOREA","CANADA","UNITEDSTATES",
+                 "QATAR","BRAZIL","HAITI","AUSTRALIA",
+                 "GERMANY", "NETHERLANDS","IVORYCOAST","SWEDEN",
+                 "SPAIN","BELGIUM","SAUDIARABIA","IRAN",
+                 "FRANCE","IRAQ","ARGENTINA","AUSTRIA",
+                 "PORTUGAL", "ENGLAND", "GHANA", "UZBEKISTAN"),
+  home_goals = c(2,2,1,4,1,1,0,2,
+                 4,2,1,5,0,1,1,2,
+                 3,0,3,3,1,4,1,1), 
+  away_team  = c("SOUTHAFRICA","CZECHREPUBLIC","BOSNIAANDHERZEGOVINA","PARAGUAY",
+                 "SWITZERLAND","MOROCCO","SCOTLAND","TURKEY",
+                 "CURACAO", "JAPAN","ECUADOR","TUNISIA",
+                 "CAPEVERDE","EGYPT","URUGUAY","NEWZEALAND",
+                 "SENEGAL","NORWAY","ALGERIA","JORDAN",
+                 "DRCONGO", "CROATIA", "PANAMA","COLOMBIA"),
+  away_goals = c(0,1,1,1,1,1,1,0,
+                 1,2,0,1,0,1,1,2,
+                 1,2,0,1,1,2,0,3)
+)
+```
 
-teams <- unique(c(groupstage1$home_team, groupstage1$away_team))
+```{r}
+games_groupstage2 <- data.frame(
+  periods    = rep(31,24),
+  home_team  = c("CZECHREPUBLIC","SWITZERLAND","CANADA","MEXICO",
+                 "UNITEDSTATES","SCOTLAND","BRAZIL","TURKEY",
+                 "NETHERLANDS","GERMANY","ECUADOR","TUNISIA",
+                 "SPAIN","BELGIUM","URUGUAY","NEWZEALAND",
+                 "ARGENTINA","FRANCE","NORWAY","JORDAN",
+                 "PORTUGAL","ENGLAND","PANAMA","COLOMBIA"),
+  home_goals = rep(NA,24),
+  away_team  = c("SOUTHAFRICA","BOSNIAANDHERZEGOVINA","QATAR","SOUTHKOREA",
+                 "AUSTRALIA","MOROCCO","HAITI","PARAGUAY",
+                 "SWEDEN","IVORYCOAST","CURACAO","JAPAN",
+                 "SAUDIARABIA","IRAN","CAPEVERDE","EGYPT",
+                 "AUSTRIA","IRAQ","SENEGAL","ALGERIA",
+                 "UZBEKISTAN","GHANA","CROATIA","DRCONGO"),
+  away_goals = rep(NA,24)
+)
+```
 
-ranking_footBayes_clean <- ranking_footBayes %>%
+```{r}
+groupstage1_train <- results_footBayes_ready[1:(nrow(results_footBayes_ready) - 72), ]
+
+groupstage2 <- rbind(
+  groupstage1_train,  
+  results_groupstage1,
+  games_groupstage2
+)
+```
+
+```{r}
+equipes_ranking <- unique(ranking_footBayes_clean2$team)
+
+groupstage2 <- groupstage2 %>%
+  filter(home_team %in% equipes_ranking,
+         away_team %in% equipes_ranking)
+```
+
+
+```{r}
+teams <- unique(c(groupstage2$home_team, groupstage2$away_team))
+
+ranking_footBayes_clean <- ranking_footBayes_clean2 %>%
   filter(team %in% teams)
 ```
 
 
 ```{r}
-diag_infl <- stan_foot(
-  data = groupstage1,
+diag_infl_j2 <- stan_foot(
+  data = groupstage2,
   model = "diag_infl_biv_pois",
   predict = 24,
   ranking = ranking_footBayes_clean,
@@ -441,11 +482,11 @@ diag_infl <- stan_foot(
 ```
 
 ```{r}
-prob_diag_infl <- foot_prob(object = diag_infl, data = groupstage1)
+prob_diag_infl_j2 <- foot_prob(object = diag_infl_j2, data = groupstage2)
 ```
 
 ```{r}
-colnames(prob_diag_infl$prob_table) <- c(
+colnames(prob_diag_infl_j2$prob_table) <- c(
       "home",
       "away",
       "home win",
@@ -454,12 +495,12 @@ colnames(prob_diag_infl$prob_table) <- c(
       "mlo"
     )
 
-prob_diag_infl$prob_table
+prob_diag_infl_j2$prob_table
 ```
 
 ```{r}
-write.csv(prob_diag_infl$prob_table, 
-          file = "results/groupstage1_diag_infl_biv_pois2.csv", 
+write.csv(prob_diag_infl_j2$prob_table, 
+          file = "~/work/World-Cup-2026/results/groupstage2_diag_infl_biv_pois.csv", 
           row.names = FALSE)
 ```
 
@@ -515,37 +556,37 @@ new_names <- c(
   "CROATIA" = "Croatia"
 )
 
-p <- prob_diag_infl$prob_plot
+p2 <- prob_diag_infl_j2$prob_plot
 
 for (old in names(new_names)) {
-  p$data$new_matches <- gsub(old, new_names[old], p$data$new_matches, ignore.case = TRUE)
+  p2$data$new_matches <- gsub(old, new_names[old], p2$data$new_matches, ignore.case = TRUE)
 }
 
-p$theme$axis.text.x$size <- 10
-p$theme$axis.text.y$size <- 10
-p$theme$axis.title$size  <- 10
-p$theme$strip.text$size  <- 10 
+p2$theme$axis.text.x$size <- 10
+p2$theme$axis.text.y$size <- 10
+p2$theme$axis.title$size  <- 10
+p2$theme$strip.text$size  <- 10 
 
-p <- p + theme(
+p2 <- p2 + theme(
   strip.text = element_text(size = 10, face = "bold"),  
   axis.text  = element_text(size = 10),                 
   axis.title = element_text(size = 10, face = "bold"), 
   plot.title = element_text(size = 14, face = "bold") 
 )
 
-p <- p + guides(color = "none")
+p2 <- p2 + guides(color = "none")
 
-p
+p2
 ```
 
 ```{r}
-ggsave("results/plot_diag_infl2.png", plot = p, width = 20, height = 15, dpi = 300)
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_j2.png", plot = p2, width = 20, height = 15, dpi = 300)
 ```
 
 Posterior  matches probabilities from the posterior predictive distribution of the model above are displayed in the table below. **mlo** denotes the most likely exact outcome (in parenthesis, the corresponding posterior probability). Darker regions in the plots below denote more likely outcomes: on the $x$-axis the home goals, on the $y$-axis the away goals. 
 
 ```{r}
-# saveRDS(diag_infl, file = "results/diag_infl_groupstage1.rds")
+saveRDS(diag_infl_j2, file = "~/work/World-Cup-2026/results/diag_infl_groupstage2.rds")
 ```
 
 
