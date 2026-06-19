@@ -1,0 +1,241 @@
+---
+title: "Predictions - Groupstage3 without priors"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Packages needed
+library(dplyr)
+library(tidyr)
+library(loo)
+library(cmdstanr)
+library(footBayes)
+library(posterior)
+library(bayesplot)
+library(instantiate)
+library(stringi)
+library(stringr)
+library(readr)
+```
+
+# The theory
+
+We use a **diagonal-inflated Bivariate-Poisson model with dynamic team-specific abilities** for the attack and the defence. Let $(X_{i}, Y_{i})$ denote the random number of goals scored by the home and the away team in the $i$-th game, $i=1,\ldots,n$, respectively. $\mathsf{ranking}$ denotes the latest Coca-Cola FIFA ranking available for each team prior to the match being played, whereas att and def denote the attack and the defence abilities, respectively.
+
+\begin{align}
+(X_i, Y_i) &\ \sim \ \begin{cases} (1-p) \text{BP}(x_i, y_i |\lambda_1, \lambda_2, \lambda_3) \ \ \ & \text{if} \    x \ne y \\ (1-p) \text{BP}(x_i, y_i | \lambda_1, \lambda_2, \lambda_3) + pD(x, \eta) \ \ \ & \text{if} \   x = y, \end{cases}, \\
+\log(\lambda_{1i}) &=\    \text{att}_{h_i, t}+ \text{def}_{a_i,t} + \frac{\gamma}{2}(\mathsf{ranking}_{h_i,t}-\mathsf{ranking}_{a_i,t}) \\
+\log(\lambda_{2i}) & =\    \text{att}_{a_i,t} + \text{def}_{h_i,t} - \frac{\gamma}{2}(\mathsf{ranking}_{h_i,t}-\mathsf{ranking}_{a_i}), \ \ i=1,\ldots,n\ (\text{matches}), \\
+\log(\lambda_{3i}) & =\ \rho,\\
+\text{att}_{k, t}&  \sim \ \mathcal{N}(\text{att}_{k, t-1}, \sigma^2), \\
+\text{def}_{k, t} & \sim \  \mathcal{N}(\text{def}_{k, t-1}, \sigma^2),\\
+\rho, \ \gamma & \sim \mathcal{N}(0,1) \\
+p & \sim \text{Uniform}(0,1)\\
+& \sum_{k=1}^{n_t} \text{att}_{k, }=0, \  \sum_{k=1}^{n_t}\text{def}_{k, }=0, \ \ k=1,\ldots n_t \ (\text{teams}), \  t=1,\ldots, T \ (\text{times}).
+\label{eq:scoring_rue}
+\end{align}
+
+This model is designed to predict football match scores, where $(X_i, Y_i)$ represent the number of goals scored by the home team and the away team, respectively, in match i. 
+
+Model fitting has been obtained through the Hamiltonian Monte Carlo sampling, 2000 iterations, 4 chains using the ```footBayes``` \texttt{R} package (with the underlying ```rstan``` package). 
+
+The historical data used to fit the models come from *all the international matches played since the 1st of January 2022*, both for the games and the ranking (the oldest ranking used is the one of the 23rd of December 2021).
+
+The idea is to provide a dynamic predictive scenario: at the end of each match-day, the model will be refitted  to predict the remaining matches. So for now, we have started by making predictions only for the first matchday of the group stage. 
+
+# The data
+
+```{r}
+results_groupstage2 <- data.frame(
+  periods    = rep(31, 24),   
+  home_team  = c(),
+  home_goals = c(), 
+  away_team  = c(),
+  away_goals = c()
+)
+```
+
+```{r}
+games_groupstage3 <- data.frame(
+  periods    = rep(31,24),
+  home_team  = c(),
+  home_goals = rep(NA,24),
+  away_team  = c(),
+  away_goals = rep(NA,24)
+)
+```
+
+```{r}
+groupstage3 <- rbind(
+  groupstage2[1:(nrow(groupstage2) - 24), ],  
+  results_groupstage2,
+  games_groupstage3
+)
+```
+
+```{r}
+# Équipes du modèle 2
+groupstage3_teams <- unique(c(groupstage3$home_team, groupstage3$away_team))
+
+# Ranking filtré sur les équipes du modèle 2, avec fill sur les périodes manquantes
+ranking_footBayes_clean2 <- ranking_footBayes %>%
+  filter(team %in% groupstage3_teams) %>%
+  arrange(team, periods) %>%
+  group_by(team) %>%
+  fill(rank_points, .direction = "down") %>%
+  ungroup()
+```
+
+
+```{r}
+equipes_ranking <- unique(ranking_footBayes_clean2$team)
+
+groupstage3 <- groupstage3 %>%
+  filter(home_team %in% equipes_ranking,
+         away_team %in% equipes_ranking)
+```
+
+
+```{r}
+teams <- unique(c(groupstage3$home_team, groupstage3$away_team))
+
+ranking_footBayes_clean <- ranking_footBayes_clean2 %>%
+  filter(team %in% teams)
+```
+
+# The predictions for the first day of groupstage 3
+
+
+## The Diaginal Inflated Bivariate Poisson model 
+
+```{r}
+diag_infl_j3 <- stan_foot(
+  data = groupstage3,
+  model = "diag_infl_biv_pois",
+  predict = 24,
+  ranking = ranking_footBayes_clean,
+  dynamic_type = "seasonal",
+  init = 0,
+  home_effect = FALSE,
+  chains = 4, parallel_chains = 4,
+  iter_sampling = 1000,
+  iter_warmup = 1000,
+  seed = 123
+)
+```
+
+```{r}
+prob_diag_infl_j3 <- foot_prob(object = diag_infl_j3, data = groupstage3)
+```
+
+```{r}
+colnames(prob_diag_infl_j3$prob_table) <- c(
+      "home",
+      "away",
+      "home win",
+      "draw",
+      "away win",
+      "mlo"
+    )
+
+prob_diag_infl_j3$prob_table
+```
+
+```{r}
+write.csv(prob_diag_infl_j3$prob_table, 
+          file = "~/work/World-Cup-2026/results/groupstage3_diag_infl_biv_pois.csv", 
+          row.names = FALSE)
+```
+
+```{r}
+new_names <- c(
+  "MEXICO"          = "Mexico",
+  "SOUTHKOREA"      = "South Korea",
+  "CANADA"            = "Canada",
+  "UNITEDSTATES"      = "United States",
+  "QATAR"      = "Qatar",
+  "BRAZIL"           = "Brazil",
+  "HAITI"            = "Haiti",
+  "AUSTRALIA"    = "Australia",
+  "GERMANY"      = "Germany",
+  "IVORYCOAST"          = "Ivory Coast",
+  "NETHERLANDS"            = "Netherlands",
+  "SWEDEN"          = "Sweden",
+  "BELGIUM"           = "Belgium",
+  "IRAN"          = "Iran",
+  "SPAIN"           = "Spain",
+  "SAUDIARABIA"           = "Saudi Arabia",
+  "FRANCE"          = "France",
+  "IRAQ"          = "Iraq", 
+  "ARGENTINA"          = "Argentina",
+  "AUSTRIA"        = "Austria",
+  "PORTUGAL"           = "Portugal",
+  "UZBEKISTAN"      = "Uzbekistan",
+  "ENGLAND"   = "England",
+  "GHANA"         = "Ghana",
+  "CZECHREPUBLIC"         = "Czech Republic",
+  "SWITZERLAND"          = "Switzerland",
+  "SCOTLAND"           = "Scotland",
+  "TURKEY"         = "Turkey",
+  "ECUADOR"            = "Ecuador",
+  "TUNISIA"        = "Tunisia",
+  "NEWZEALAND"          = "New Zealand",
+  "URUGUAY"         = "Uruguay",
+  "NORWAY"       = "Norway",
+  "JORDAN"          = "Jordan",
+  "COLOMBIA"     = "Colombia",
+  "PANAMA"          = "Panama",
+  "SOUTHAFRICA"     = "South Africa",
+  "BOSNIAANDHERZEGOVINA"           = "Bosnia and Herzegovina",
+  "MOROCCO"             = "Morocco",
+  "PARAGUAY"       = "Paraguay",
+  "CURACAO" = "Curacao",
+  "JAPAN" = "Japan",
+  "EGYPT" = "Egypt",
+  "CAPEVERDE" = "Cape Verde",
+  "SENEGAL" = "Senegal",
+  "ALGERIA" = "Algeria",
+  "DRCONGO" = "DR Congo",
+  "CROATIA" = "Croatia"
+)
+
+p3 <- prob_diag_infl_j3$prob_plot
+
+for (old in names(new_names)) {
+  p3$data$new_matches <- gsub(old, new_names[old], p3$data$new_matches, ignore.case = TRUE)
+}
+
+p3$theme$axis.text.x$size <- 10
+p3$theme$axis.text.y$size <- 10
+p3$theme$axis.title$size  <- 10
+p3$theme$strip.text$size  <- 10 
+
+p3 <- p3 + theme(
+  strip.text = element_text(size = 10, face = "bold"),  
+  axis.text  = element_text(size = 10),                 
+  axis.title = element_text(size = 10, face = "bold"), 
+  plot.title = element_text(size = 14, face = "bold") 
+)
+
+p3 <- p3 + guides(color = "none")
+
+p3
+```
+
+```{r}
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_j3.png", plot = p3, width = 20, height = 15, dpi = 300)
+```
+
+Posterior  matches probabilities from the posterior predictive distribution of the model above are displayed in the table below. **mlo** denotes the most likely exact outcome (in parenthesis, the corresponding posterior probability). Darker regions in the plots below denote more likely outcomes: on the $x$-axis the home goals, on the $y$-axis the away goals. 
+
+```{r}
+saveRDS(diag_infl_j3, file = "~/work/World-Cup-2026/results/diag_infl_groupstage3.rds")
+```
+
+
+
+

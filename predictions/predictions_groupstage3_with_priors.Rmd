@@ -1,0 +1,313 @@
+---
+title: "Predictions groupstage2"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# The theory
+
+We use a **diagonal-inflated Bivariate-Poisson model with dynamic team-specific abilities** for the attack and the defence. Let $(X_{i}, Y_{i})$ denote the random number of goals scored by the home and the away team in the $i$-th game, $i=1,\ldots,n$, respectively. $\mathsf{ranking}$ denotes the latest Coca-Cola FIFA ranking available for each team prior to the match being played, whereas att and def denote the attack and the defence abilities, respectively.
+
+\begin{align}
+(X_i, Y_i) &\ \sim \ \begin{cases} (1-p) \text{BP}(x_i, y_i |\lambda_1, \lambda_2, \lambda_3) \ \ \ & \text{if} \    x \ne y \\ (1-p) \text{BP}(x_i, y_i | \lambda_1, \lambda_2, \lambda_3) + pD(x, \eta) \ \ \ & \text{if} \   x = y, \end{cases}, \\
+\log(\lambda_{1i}) &=\    \text{att}_{h_i, t}+ \text{def}_{a_i,t} + \frac{\gamma}{2}(\mathsf{ranking}_{h_i,t}-\mathsf{ranking}_{a_i,t}) \\
+\log(\lambda_{2i}) & =\    \text{att}_{a_i,t} + \text{def}_{h_i,t} - \frac{\gamma}{2}(\mathsf{ranking}_{h_i,t}-\mathsf{ranking}_{a_i}), \ \ i=1,\ldots,n\ (\text{matches}), \\
+\log(\lambda_{3i}) & =\ \rho,\\
+\text{att}_{k, t}&  \sim \ \mathcal{N}(\text{att}_{k, t-1}, \sigma^2), \\
+\text{def}_{k, t} & \sim \  \mathcal{N}(\text{def}_{k, t-1}, \sigma^2),\\
+\rho, \ \gamma & \sim \mathcal{N}(0,1) \\
+p & \sim \text{Uniform}(0,1)\\
+& \sum_{k=1}^{n_t} \text{att}_{k, }=0, \  \sum_{k=1}^{n_t}\text{def}_{k, }=0, \ \ k=1,\ldots n_t \ (\text{teams}), \  t=1,\ldots, T \ (\text{times}).
+\label{eq:scoring_rue}
+\end{align}
+
+This model is designed to predict football match scores, where $(X_i, Y_i)$ represent the number of goals scored by the home team and the away team, respectively, in match i. 
+
+Model fitting has been obtained through the Hamiltonian Monte Carlo sampling, 2000 iterations, 4 chains using the ```footBayes``` \texttt{R} package (with the underlying ```rstan``` package). 
+
+The historical data used to fit the models come from *all the international matches played since the 1st of January 2022*, both for the games and the ranking (the oldest ranking used is the one of the 23rd of December 2021).
+
+The idea is to provide a dynamic predictive scenario: at the end of each match-day, the model will be refitted  to predict the remaining matches. So for now, we have started by making predictions only for the second matchday of the group stage. 
+
+# The data
+
+## The results of groupstage2
+
+```{r}
+results_groupstage2 <- data.frame(
+  periods    = rep(31, 24),   
+  home_team  = c(),
+  home_goals = c(), 
+  away_team  = c(),
+  away_goals = c()
+)
+```
+
+## Games of groupstage3
+
+```{r}
+# Nouvelle période (32) pour les matchs du groupstage2
+games_groupstage3 <- data.frame(
+  periods    = rep(31, 24),
+  home_team  = c(),
+  home_goals = rep(NA, 24),
+  away_team  = c(),
+  away_goals = rep(NA, 24)
+)
+```
+
+## Final groupstage3
+
+```{r}
+groupstage3 <- rbind(
+  groupstage2[1:(nrow(groupstage2) - 24), ],  
+  results_groupstage2,
+  games_groupstage3
+)
+```
+
+```{r}
+# Équipes du modèle 2
+groupstage3_teams <- unique(c(groupstage3$home_team, groupstage3$away_team))
+
+# Ranking filtré sur les équipes du modèle 2, avec fill sur les périodes manquantes
+ranking_footBayes_clean2 <- ranking_footBayes %>%
+  filter(team %in% groupstage3_teams) %>%
+  arrange(team, periods) %>%
+  group_by(team) %>%
+  fill(rank_points, .direction = "down") %>%
+  ungroup()
+```
+
+```{r}
+equipes_ranking <- unique(ranking_footBayes_clean2$team)
+
+groupstage3 <- groupstage3 %>%
+  filter(home_team %in% equipes_ranking,
+         away_team %in% equipes_ranking)
+```
+
+```{r}
+teams <- unique(c(groupstage3$home_team, groupstage3$away_team))
+
+ranking_footBayes_clean <- ranking_footBayes_clean2 %>%
+  filter(team %in% teams)
+```
+
+# The predictions
+
+## Initialisation of the parameters
+
+```{r}
+diag_infl <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_groupstage2.rds")
+```
+
+```{r}
+# Extraction of the posteriors
+draws_df <- diag_infl$fit$draws(format = "draws_df")
+
+n_chains <- 4
+
+# Équipes du modèle 1 (ordre alphabétique = ordre interne footBayes)
+teams_m1 <- sort(unique(c(groupstage2$home_team, groupstage2$away_team)))
+# Équipes du modèle 2
+teams_m2 <- sort(unique(c(groupstage3$home_team, groupstage3$away_team)))
+# Équipes communes et leurs indices dans chaque modèle
+common_teams <- intersect(teams_m1, teams_m2)
+idx_in_m1    <- which(teams_m1 %in% common_teams)
+idx_in_m2    <- which(teams_m2 %in% common_teams)
+n_teams_m2   <- length(teams_m2)
+
+# Colonnes att/def dans le draws_df
+att_cols <- grep("^att_raw_centered\\[", colnames(draws_df), value = TRUE)
+def_cols <- grep("^def_raw_centered\\[", colnames(draws_df), value = TRUE)
+
+# Extraction des indices [i,j] depuis les noms de colonnes Stan
+# Dans Stan : att_raw_centered[period, team]
+extract_ij <- function(cols) {
+  idx_str <- regmatches(cols, regexpr("\\d+,\\d+", cols))
+  i <- as.integer(sub(",.*", "", idx_str))
+  j <- as.integer(gsub("\\]", "", sub(".*,", "", idx_str)))
+  list(i = i, j = j, nrow = max(i), ncol = max(j))
+}
+
+ij_att <- extract_ij(att_cols)
+ij_def <- extract_ij(def_cols)
+
+# i = period index, j = team index (ordre réel dans Stan)
+n_periods_m1 <- ij_att$nrow
+n_teams_m1   <- ij_att$ncol
+
+cat("Modèle 1 : n_teams =", n_teams_m1, " | n_periods =", n_periods_m1, "\n")
+cat("Attendu teams_m1 :", length(teams_m1), "\n")
+
+# Nombre de périodes du modèle 2
+n_periods_m2 <- max(groupstage2$periods)
+cat("Modèle 2 : n_periods =", n_periods_m2, "\n")
+
+# Reconstruction d'une matrice [n_periods, n_teams] depuis un draw
+parse_matrix <- function(cols, ij, draws_row) {
+  mat <- matrix(0, nrow = ij$nrow, ncol = ij$ncol)
+  for (k in seq_along(cols)) mat[ij$i[k], ij$j[k]] <- as.numeric(draws_row[[cols[k]]])
+  mat
+}
+
+inits_j3 <- lapply(1:n_chains, function(c) {
+  draw_idx  <- sample(nrow(draws_df), 1)
+  draws_row <- draws_df[draw_idx, ]
+  
+  att_m1 <- parse_matrix(att_cols, ij_att, draws_row)  # [n_periods_m1, n_teams_m1]
+  def_m1 <- parse_matrix(def_cols, ij_def, draws_row)
+  
+  # Matrices pour le modèle 2 : [n_periods_m2, n_teams_m2]
+  att_m2 <- matrix(0, nrow = n_periods_m2, ncol = n_teams_m2)
+  def_m2 <- matrix(0, nrow = n_periods_m2, ncol = n_teams_m2)
+  
+  # Transfert des périodes communes pour les équipes communes
+  att_m2[1:n_periods_m1, idx_in_m2] <- att_m1[1:n_periods_m1, idx_in_m1]
+  def_m2[1:n_periods_m1, idx_in_m2] <- def_m1[1:n_periods_m1, idx_in_m1]
+  
+  # Période(s) supplémentaire(s) : prolongation avec la dernière période connue
+  for (t in (n_periods_m1 + 1):n_periods_m2) {
+    att_m2[t, idx_in_m2] <- att_m1[n_periods_m1, idx_in_m1]
+    def_m2[t, idx_in_m2] <- def_m1[n_periods_m1, idx_in_m1]
+  }
+  
+  list(
+    att_raw_centered = att_m2,
+    def_raw_centered = def_m2,
+    rho           = as.numeric(draws_row[["rho"]]),
+    gamma         = as.numeric(draws_row[["gamma"]]),
+    sigma_att     = as.numeric(draws_row[["sigma_att[1]"]]),
+    sigma_def     = as.numeric(draws_row[["sigma_def[1]"]]),
+    prob_of_draws = as.numeric(draws_row[["prob_of_draws"]])
+  )
+})
+```
+
+## The predictions
+
+```{r}
+diag_infl_j3_priors <- stan_foot(
+  data          = groupstage3,
+  model         = "diag_infl_biv_pois",
+  predict       = 24,              
+  ranking       = ranking_footBayes_clean,
+  dynamic_type  = "seasonal",
+  init          = inits_j3,       
+  home_effect   = FALSE,
+  chains        = 4, parallel_chains = 4,
+  iter_sampling = 1000,
+  iter_warmup   = 500,            
+  seed          = 456
+)
+```
+
+```{r}
+prob_diag_infl_j3_priors <- foot_prob(object = diag_infl_j3_priors, data = groupstage3)
+```
+
+```{r}
+colnames(prob_diag_infl_j3_priors$prob_table) <- c(
+      "home",
+      "away",
+      "home win",
+      "draw",
+      "away win",
+      "mlo"
+    )
+
+prob_diag_infl_j3_priors$prob_table
+```
+
+```{r}
+write.csv(prob_diag_infl_j3_priors$prob_table, 
+          file = "~/work/World-Cup-2026/results/groupstage3_diag_infl_biv_pois_priors.csv", 
+          row.names = FALSE)
+```
+
+```{r}
+new_names <- c(
+  "MEXICO"          = "Mexico",
+  "SOUTHKOREA"      = "South Korea",
+  "CANADA"            = "Canada",
+  "UNITEDSTATES"      = "United States",
+  "QATAR"      = "Qatar",
+  "BRAZIL"           = "Brazil",
+  "HAITI"            = "Haiti",
+  "AUSTRALIA"    = "Australia",
+  "GERMANY"      = "Germany",
+  "IVORYCOAST"          = "Ivory Coast",
+  "NETHERLANDS"            = "Netherlands",
+  "SWEDEN"          = "Sweden",
+  "BELGIUM"           = "Belgium",
+  "IRAN"          = "Iran",
+  "SPAIN"           = "Spain",
+  "SAUDIARABIA"           = "Saudi Arabia",
+  "FRANCE"          = "France",
+  "IRAQ"          = "Iraq", 
+  "ARGENTINA"          = "Argentina",
+  "AUSTRIA"        = "Austria",
+  "PORTUGAL"           = "Portugal",
+  "UZBEKISTAN"      = "Uzbekistan",
+  "ENGLAND"   = "England",
+  "GHANA"         = "Ghana",
+  "CZECHREPUBLIC"         = "Czech Republic",
+  "SWITZERLAND"          = "Switzerland",
+  "SCOTLAND"           = "Scotland",
+  "TURKEY"         = "Turkey",
+  "ECUADOR"            = "Ecuador",
+  "TUNISIA"        = "Tunisia",
+  "NEWZEALAND"          = "New Zealand",
+  "URUGUAY"         = "Uruguay",
+  "NORWAY"       = "Norway",
+  "JORDAN"          = "Jordan",
+  "COLOMBIA"     = "Colombia",
+  "PANAMA"          = "Panama",
+  "SOUTHAFRICA"     = "South Africa",
+  "BOSNIAANDHERZEGOVINA"           = "Bosnia and Herzegovina",
+  "MOROCCO"             = "Morocco",
+  "PARAGUAY"       = "Paraguay",
+  "CURACAO" = "Curacao",
+  "JAPAN" = "Japan",
+  "EGYPT" = "Egypt",
+  "CAPEVERDE" = "Cape Verde",
+  "SENEGAL" = "Senegal",
+  "ALGERIA" = "Algeria",
+  "DRCONGO" = "DR Congo",
+  "CROATIA" = "Croatia"
+)
+
+p_j3_priors <- prob_diag_infl_j3_priors$prob_plot
+
+for (old in names(new_names)) {
+  p_j3_priors$data$new_matches <- gsub(old, new_names[old], p_j3_priors$data$new_matches, ignore.case = TRUE)
+}
+
+p_j3_priors$theme$axis.text.x$size <- 10
+p_j3_priors$theme$axis.text.y$size <- 10
+p_j3_priors$theme$axis.title$size  <- 10
+p_j3_priors$theme$strip.text$size  <- 10 
+
+p_j3_priors <- p_j3_priors + theme(
+  strip.text = element_text(size = 10, face = "bold"),  
+  axis.text  = element_text(size = 10),                 
+  axis.title = element_text(size = 10, face = "bold"), 
+  plot.title = element_text(size = 14, face = "bold") 
+)
+
+p_j3_priors <- p_j3_priors + guides(color = "none")
+
+p_j3_priors
+```
+
+```{r}
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_j3_priors.png", plot = p_j3_priors, width = 20, height = 15, dpi = 300)
+```
+
+```{r}
+saveRDS(diag_infl_j3_priors, file = "~/work/World-Cup-2026/results/diag_infl_groupstage3_priors.rds")
+```
