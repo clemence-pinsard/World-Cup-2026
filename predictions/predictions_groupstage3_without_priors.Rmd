@@ -51,20 +51,30 @@ The idea is to provide a dynamic predictive scenario: at the end of each match-d
 
 ```{r}
 results_groupstage2 <- data.frame(
-  periods    = rep(31, 24),   
-  home_team  = c(),
-  home_goals = c(), 
-  away_team  = c(),
-  away_goals = c()
+  periods    = rep(31, 4),   
+  home_team  = c("CZECHREPUBLIC","SWITZERLAND","CANADA","MEXICO"),
+  home_goals = c(1,4,6,1), 
+  away_team  = c("SOUTHAFRICA","BOSNIAANDHERZEGOVINA","QATAR","SOUTHKOREA"),
+  away_goals = c(1,1,0,0)
 )
 ```
 
 ```{r}
 games_groupstage3 <- data.frame(
   periods    = rep(31,24),
-  home_team  = c(),
+  home_team  = c("SWITZERLAND","BOSNIAANDHERZEGOVINA","MOROCCO","SCOTLAND",
+                 "SOUTHAFRICA","CZECHREPUBLIC","CURACAO","ECUADOR",
+                 "TUNISIA","JAPAN","TURKEY","PARAGUAY",
+                 "NORWAY","SENEGAL","CAPEVERDE","URUGUAY",
+                 "NEWZEALAND","EGYPT","PANAMA","CROATIA",
+                 "COLOMBIA","DRCONGO","ALGERIA","JORDAN"),
   home_goals = rep(NA,24),
-  away_team  = c(),
+  away_team  = c("CANADA","QATAR","HAITI","BRAZIL",
+                 "SOUTHKOREA","MEXICO","IVORYCOAST","GERMANY",
+                 "NETHERLANDS","SWEDEN","UNITEDSTATES","AUSTRALIA",
+                 "FRANCE","IRAQ","SAUDIARABIA","SPAIN",
+                 "BELGIUM","IRAN","ENGLAND","GHANA",
+                 "PORTUGAL","UZBEKISTAN","AUSTRIA","ARGENTINA"),
   away_goals = rep(NA,24)
 )
 ```
