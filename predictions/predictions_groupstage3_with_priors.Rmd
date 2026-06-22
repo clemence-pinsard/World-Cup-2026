@@ -38,11 +38,19 @@ The idea is to provide a dynamic predictive scenario: at the end of each match-d
 
 ```{r}
 results_groupstage2 <- data.frame(
-  periods    = rep(31, 24),   
-  home_team  = c("CZECHREPUBLIC","SWITZERLAND","CANADA","MEXICO"),
-  home_goals = c(1,4,6,1), 
-  away_team  = c("SOUTHAFRICA","BOSNIAANDHERZEGOVINA","QATAR","SOUTHKOREA"),
-  away_goals = c(1,1,0,0)
+  periods    = rep(31, 4),   
+  home_team  = c("CZECHREPUBLIC","SWITZERLAND","CANADA","MEXICO",
+                 "UNITEDSTATES","SCOTLAND","BRAZIL","TURKEY",
+                 "NETHERLANDS","GERMANY","ECUADOR","TUNISIA",
+                 "SPAIN","BELGIUM","URUGUAY","NEWZEALAND"),
+  home_goals = c(1,4,6,1,2,0,3,0,
+                 5,2,0,0,4,0,2,1), 
+  away_team  = c("SOUTHAFRICA","BOSNIAANDHERZEGOVINA","QATAR","SOUTHKOREA",
+                 "AUSTRALIA","MOROCCO","HAITI","PARAGUAY",
+                 "SWEDEN","IVORYCOAST","CURACAO","JAPAN",
+                 "SAUDIARABIA","IRAN","CAPEVERDE","EGYPT"),
+  away_goals = c(1,1,0,0,0,1,0,1,
+                 1,1,0,4,0,0,2,3)
 )
 ```
 
@@ -112,24 +120,17 @@ ranking_footBayes_clean <- ranking_footBayes_clean2 %>%
 ## Initialisation of the parameters
 
 ```{r}
-diag_infl <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_groupstage2.rds")
+diag_infl_j2 <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_groupstage2.rds")
 ```
 
 ```{r}
-# Extraction of the posteriors
-draws_df <- diag_infl$fit$draws(format = "draws_df")
-
+# Extraction des posteriors du modèle J2 (pour servir de prior à J3)
+draws_df <- diag_infl_j2$fit$draws(format = "draws_df")
 n_chains <- 4
 
-# Équipes du modèle 1 (ordre alphabétique = ordre interne footBayes)
-teams_m1 <- sort(unique(c(groupstage2$home_team, groupstage2$away_team)))
-# Équipes du modèle 2
+# Équipes (mêmes équipes pour J2 et J3, ordre alphabétique = ordre interne footBayes)
 teams_m2 <- sort(unique(c(groupstage3$home_team, groupstage3$away_team)))
-# Équipes communes et leurs indices dans chaque modèle
-common_teams <- intersect(teams_m1, teams_m2)
-idx_in_m1    <- which(teams_m1 %in% common_teams)
-idx_in_m2    <- which(teams_m2 %in% common_teams)
-n_teams_m2   <- length(teams_m2)
+n_teams_m2 <- length(teams_m2)
 
 # Colonnes att/def dans le draws_df
 att_cols <- grep("^att_raw_centered\\[", colnames(draws_df), value = TRUE)
@@ -147,16 +148,11 @@ extract_ij <- function(cols) {
 ij_att <- extract_ij(att_cols)
 ij_def <- extract_ij(def_cols)
 
-# i = period index, j = team index (ordre réel dans Stan)
 n_periods_m1 <- ij_att$nrow
 n_teams_m1   <- ij_att$ncol
 
-cat("Modèle 1 : n_teams =", n_teams_m1, " | n_periods =", n_periods_m1, "\n")
-cat("Attendu teams_m1 :", length(teams_m1), "\n")
-
-# Nombre de périodes du modèle 2
-n_periods_m2 <- max(groupstage2$periods)
-cat("Modèle 2 : n_periods =", n_periods_m2, "\n")
+cat("Modèle J2 : n_teams =", n_teams_m1, " | n_periods =", n_periods_m1, "\n")
+cat("Modèle J3 attendu : n_teams =", n_teams_m2, "\n")
 
 # Reconstruction d'une matrice [n_periods, n_teams] depuis un draw
 parse_matrix <- function(cols, ij, draws_row) {
@@ -169,22 +165,9 @@ inits_j3 <- lapply(1:n_chains, function(c) {
   draw_idx  <- sample(nrow(draws_df), 1)
   draws_row <- draws_df[draw_idx, ]
   
-  att_m1 <- parse_matrix(att_cols, ij_att, draws_row)  # [n_periods_m1, n_teams_m1]
-  def_m1 <- parse_matrix(def_cols, ij_def, draws_row)
-  
-  # Matrices pour le modèle 2 : [n_periods_m2, n_teams_m2]
-  att_m2 <- matrix(0, nrow = n_periods_m2, ncol = n_teams_m2)
-  def_m2 <- matrix(0, nrow = n_periods_m2, ncol = n_teams_m2)
-  
-  # Transfert des périodes communes pour les équipes communes
-  att_m2[1:n_periods_m1, idx_in_m2] <- att_m1[1:n_periods_m1, idx_in_m1]
-  def_m2[1:n_periods_m1, idx_in_m2] <- def_m1[1:n_periods_m1, idx_in_m1]
-  
-  # Période(s) supplémentaire(s) : prolongation avec la dernière période connue
-  for (t in (n_periods_m1 + 1):n_periods_m2) {
-    att_m2[t, idx_in_m2] <- att_m1[n_periods_m1, idx_in_m1]
-    def_m2[t, idx_in_m2] <- def_m1[n_periods_m1, idx_in_m1]
-  }
+  # Mêmes dimensions entre J2 et J3 : pas de réconciliation nécessaire
+  att_m2 <- parse_matrix(att_cols, ij_att, draws_row)  # [n_periods, n_teams]
+  def_m2 <- parse_matrix(def_cols, ij_def, draws_row)
   
   list(
     att_raw_centered = att_m2,
@@ -196,6 +179,9 @@ inits_j3 <- lapply(1:n_chains, function(c) {
     prob_of_draws = as.numeric(draws_row[["prob_of_draws"]])
   )
 })
+
+# Vérification finale
+cat("Dimensions finales att_raw_centered :", dim(inits_j3[[1]]$att_raw_centered), "\n")
 ```
 
 ## The predictions
