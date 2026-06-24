@@ -51,23 +51,25 @@ The idea is to provide a dynamic predictive scenario: at the end of each match-d
 
 ```{r}
 results_groupstage2 <- data.frame(
-  periods    = rep(31, 4),   
+  periods    = rep(31, 24),   
   home_team  = c("CZECHREPUBLIC","SWITZERLAND","CANADA","MEXICO",
                  "UNITEDSTATES","SCOTLAND","BRAZIL","TURKEY",
                  "NETHERLANDS","GERMANY","ECUADOR","TUNISIA",
                  "SPAIN","BELGIUM","URUGUAY","NEWZEALAND",
-                 "ARGENTINA","FRANCE","NORWAY","JORDAN"),
+                 "ARGENTINA","FRANCE","NORWAY","JORDAN",
+                 "PORTUGAL","ENGLAND","PANAMA","COLOMBIA"),
   home_goals = c(1,4,4,1,2,0,3,0,
                  5,2,0,0,4,0,2,1,
-                 2,3,3,1), 
+                 2,3,3,1,4,0,0,1), 
   away_team  = c("SOUTHAFRICA","BOSNIAANDHERZEGOVINA","QATAR","SOUTHKOREA",
                  "AUSTRALIA","MOROCCO","HAITI","PARAGUAY",
                  "SWEDEN","IVORYCOAST","CURACAO","JAPAN",
                  "SAUDIARABIA","IRAN","CAPEVERDE","EGYPT",
-                 "AUSTRIA","IRAQ","SENEGAL","ALGERIA"),
+                 "AUSTRIA","IRAQ","SENEGAL","ALGERIA",
+                 "UZBEKISTAN","GHANA","CROATIA","DRCONGO"),
   away_goals = c(1,1,0,0,0,1,0,1,
                  1,1,0,4,0,0,2,3,
-                 0,0,2,2)
+                 0,0,2,2,0,0,1,0)
 )
 ```
 
@@ -146,7 +148,7 @@ diag_infl_j3 <- stan_foot(
   chains = 4, parallel_chains = 4,
   iter_sampling = 1000,
   iter_warmup = 1000,
-  seed = 123
+  seed = 000
 )
 ```
 
