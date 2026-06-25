@@ -94,8 +94,11 @@ games_groupstage3 <- data.frame(
 ```
 
 ```{r}
+groupstage2_train <- groupstage2 %>% 
+  filter(!is.na(home_goals))
+  
 groupstage3 <- rbind(
-  groupstage2[1:(nrow(groupstage2) - 24), ],  
+  groupstage2_train,  
   results_groupstage2,
   games_groupstage3
 )
@@ -106,12 +109,8 @@ groupstage3 <- rbind(
 groupstage3_teams <- unique(c(groupstage3$home_team, groupstage3$away_team))
 
 # Ranking filtré sur les équipes du modèle 2, avec fill sur les périodes manquantes
-ranking_footBayes_clean2 <- ranking_footBayes %>%
-  filter(team %in% groupstage3_teams) %>%
-  arrange(team, periods) %>%
-  group_by(team) %>%
-  fill(rank_points, .direction = "down") %>%
-  ungroup()
+ranking_footBayes_clean2 <- ranking_footBayes_clean2 %>%
+  filter(team %in% groupstage3_teams) 
 ```
 
 
@@ -129,6 +128,9 @@ teams <- unique(c(groupstage3$home_team, groupstage3$away_team))
 
 ranking_footBayes_clean <- ranking_footBayes_clean2 %>%
   filter(team %in% teams)
+
+ranking_footBayes_clean <- ranking_footBayes_clean %>%
+  mutate(rank_points = if_else(periods == 27, rank_points / 100, rank_points))
 ```
 
 # The predictions for the first day of groupstage 3
@@ -148,7 +150,7 @@ diag_infl_j3 <- stan_foot(
   chains = 4, parallel_chains = 4,
   iter_sampling = 1000,
   iter_warmup = 1000,
-  seed = 000
+  seed = 123
 )
 ```
 

@@ -439,7 +439,8 @@ games_groupstage2 <- data.frame(
 ```
 
 ```{r}
-groupstage1_train <- results_footBayes_ready[1:(nrow(results_footBayes_ready) - 72), ]
+groupstage1_train <- results_footBayes_ready %>% 
+  filter(!is.na(home_goals))
 
 groupstage2 <- rbind(
   groupstage1_train,  
