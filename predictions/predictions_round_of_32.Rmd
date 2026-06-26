@@ -373,14 +373,101 @@ diag_infl_without_world_cup <- stan_foot(
 )
 ```
 
+```{r}
+# saveRDS(diag_infl_without_world_cup, file = "~/work/World-Cup-2026/results/diag_infl_without_world_cup.rds")
+```
+
+```{r}
+# diag_infl_without_world_cup <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_without_world_cup.rds")
+```
+
 # Extraction of the posteriors and initilization of the priors
+
+```{r}
+teams_m1   <- unique(groupstage1$home_team)
+n_teams_m1 <- length(teams_m1)
+n_chains <- 4
+```
 
 ```{r}
 draws_df <- diag_infl_without_world_cup$fit$draws(format = "df")
 ```
 
 ```{r}
-# init_pred
+att_cols <- grep("^att_raw_centered\\[", colnames(draws_df), value = TRUE)
+def_cols <- grep("^def_raw_centered\\[", colnames(draws_df), value = TRUE)
+```
+
+```{r}
+extract_ij <- function(cols) {
+  idx_str <- regmatches(cols, regexpr("\\d+,\\d+", cols))
+  i <- as.integer(sub(",.*", "", idx_str))
+  j <- as.integer(gsub("\\]", "", sub(".*,", "", idx_str)))
+  list(i = i, j = j, nrow = max(i), ncol = max(j))
+}
+```
+
+```{r}
+ij_att <- extract_ij(att_cols)
+ij_def <- extract_ij(def_cols)
+
+n_periods_m1  <- ij_att$nrow  
+n_teams_check <- ij_att$ncol  
+```
+
+```{r}
+last_period <- n_periods_m1
+
+missing_teams <- setdiff(wc48_teams, teams_m1)
+if (length(missing_teams) > 0) {
+  warning("Équipes de wc48_teams absentes de teams_m1 (groupstage1) : ",
+          paste(missing_teams, collapse = ", "))
+}
+
+keep_team_idx <- match(wc48_teams, teams_m1)
+keep_team_idx <- keep_team_idx[!is.na(keep_team_idx)]  
+teams_kept    <- teams_m1[keep_team_idx] 
+n_teams_kept <- length(keep_team_idx)
+
+att_mask <- (ij_att$i == last_period) & (ij_att$j %in% keep_team_idx)
+def_mask <- (ij_def$i == last_period) & (ij_def$j %in% keep_team_idx)
+
+att_cols_last <- att_cols[att_mask]
+def_cols_last <- def_cols[def_mask]
+att_j_last    <- ij_att$j[att_mask]
+def_j_last    <- ij_def$j[def_mask]
+```
+
+```{r}
+pos_in_kept <- match(att_j_last, keep_team_idx)   
+
+parse_vector_kept <- function(cols, pos_idx, n_teams_kept, draws_row) {
+  vec <- numeric(n_teams_kept)
+  for (k in seq_along(cols)) vec[pos_idx[k]] <- as.numeric(draws_row[[cols[k]]])
+  vec
+}
+
+pos_in_kept_def <- match(def_j_last, keep_team_idx)
+```
+
+```{r}
+inits_pred <- lapply(1:n_chains, function(c) {
+  draw_idx  <- sample(nrow(draws_df), 1)
+  draws_row <- draws_df[draw_idx, ]
+
+  att_last <- parse_vector_kept(att_cols_last, pos_in_kept, n_teams_kept, draws_row)
+  def_last <- parse_vector_kept(def_cols_last, pos_in_kept_def, n_teams_kept, draws_row)
+
+  list(
+    att_raw = att_last, 
+    def_raw = def_last,
+    rho           = as.numeric(draws_row[["rho"]]),
+    gamma         = as.numeric(draws_row[["gamma"]]),
+    sigma_att     = as.numeric(draws_row[["sigma_att[1]"]]),
+    sigma_def     = as.numeric(draws_row[["sigma_def[1]"]]),
+    prob_of_draws = as.numeric(draws_row[["prob_of_draws"]])
+  )
+})
 ```
 
 
@@ -437,32 +524,36 @@ results_groupstage2 <- data.frame(
 ```
 
 ```{r}
-results_groupstage3 <- data.fram(
-  periods = rep(31,24),
+results_groupstage3 <- data.frame(
+  periods = rep(31,12),
   home_team = c("SWITZERLAND","BOSNIAANDHERZEGOVINA","MOROCCO","SCOTLAND",
                  "SOUTHAFRICA","CZECHREPUBLIC","CURACAO","ECUADOR",
                  "TUNISIA","JAPAN","TURKEY","PARAGUAY",
-                 "NORWAY","SENEGAL","CAPEVERDE","URUGUAY",
-                 "NEWZEALAND","EGYPT","PANAMA","CROATIA",
-                 "COLOMBIA","DRCONGO","ALGERIA","JORDAN"),
-  home_goals = c(2,3,4,0,1,0),
+                "NORWAY","SENEGAL","CAPEVERDE","URUGUAY",
+                "NEWZEALAND","EGYPT","PANAMA","CROATIA",
+                "COLOMBIA","DRCONGO","ALGERIA","JORDAN"),
+  home_goals = c(2,3,4,0,1,0,0,2,
+                 1,1,3,0,1,1,0,0,
+                 0,0,0,1,1,0,1,0),
   away_team = c("CANADA","QATAR","HAITI","BRAZIL",
                  "SOUTHKOREA","MEXICO","IVORYCOAST","GERMANY",
                  "NETHERLANDS","SWEDEN","UNITEDSTATES","AUSTRALIA",
-                 "FRANCE","IRAQ","SAUDIARABIA","SPAIN",
-                 "BELGIUM","IRAN","ENGLAND","GHANA",
-                 "PORTUGAL","UZBEKISTAN","AUSTRIA","ARGENTINA"),
-  away_goals = c(1,1,2,3,0,3)
+                "FRANCE","IRAQ","SAUDIARABIA","SPAIN",
+                "BELGIUM","IRAN","ENGLAND","GHANA",
+                "PORTUGAL","UZBEKISTAN","AUSTRIA","ARGENTINA"),
+  away_goals = c(1,1,2,3,0,3,2,1,
+                 3,1,2,0,1,0,1,1,
+                 3,0,1,0,1,0,0,2)
 )
 ```
 
 ```{r}
-next_games <- data.fram(
-  periods = rep(31,16),
-  home_team = c(),
-  home_goals = c(NA,16),
-  away_team = c(),
-  away_goals = c(NA,16)
+next_games <- data.frame(
+  periods = rep(31,4),
+home_team = c("SOUTHAFRICA","BRAZIL","NETHERLANDS","UNITEDSTATES"),
+  home_goals = c(NA,4),
+  away_team = c("CANADA","JAPAN","MOROCCO","BOSNIAANDHERZEGOVINA"),
+  away_goals = c(NA,4)
 )
 ```
 
@@ -556,26 +647,67 @@ ranking_ready <- data.frame(
 )
 ```
 
+# Coordination between the initialization and data teams
+
+```{r}
+teams_new_model <- unique(c(final_data$home_team, final_data$away_team))  
+
+cat("Nb équipes dans le nouveau modèle :", length(teams_new_model), "\n")
+cat("Nb équipes dans teams_kept (posteriors filtrés) :", length(teams_kept), "\n")
+```
+
+```{r}
+only_in_new   <- setdiff(teams_new_model, teams_kept)
+only_in_kept  <- setdiff(teams_kept, teams_new_model)
+
+if (length(only_in_new) > 0) {
+  cat("Équipes dans le nouveau modèle SANS prior disponible :\n")
+  print(only_in_new)
+}
+if (length(only_in_kept) > 0) {
+  cat("Équipes avec un prior extrait mais ABSENTES du nouveau modèle :\n")
+  print(only_in_kept)
+}
+
+if (length(only_in_new) == 0 && length(only_in_kept) == 0) {
+  cat("Correspondance parfaite entre les deux ensembles d'équipes.\n")
+} else {
+  stop("Les ensembles d'équipes ne correspondent pas exactement -- corrigez avant de continuer.")
+}
+```
+
+```{r}
+reorder_idx <- match(teams_new_model, teams_kept)
+
+inits_pred2 <- lapply(inits_pred, function(init_c) {
+  init_c$att_raw_centered <- init_c$att_raw_centered[reorder_idx]
+  init_c$def_raw_centered <- init_c$def_raw_centered[reorder_idx]
+  init_c
+})
+```
+
 # The predictions 
 
 ```{r}
-diag_infl_predictons <- stan_foot(
+diag_infl_predictions <- stan_foot(
   data = final_data,
   model = "diag_infl_biv_pois",
-  predict = 16,
-  ranking = ranking_ready,
-  dynamic_type = "seasonal",
-  init = init_pred,
+  predict = 4,
+  ranking = ranking_worldcup,
+  init = inits_pred2,
   home_effect = FALSE,
+  prior_par = list(ability_sd = normal(0.4, 0.1)),
   chains = 4, parallel_chains = 4,
   iter_sampling = 1000,
-  iter_warmup = 1000,
+  iter_warmup = 4000,  
+  adapt_delta = 0.995, 
+  max_treedepth = 14, 
   seed = 123
 )
 ```
 
 ```{r}
-prob_diag_infl_pred <- foot_prob(object = diag_infl_predictons, data = groupstage2)
+prob_diag_infl_pred <- foot_prob(object = diag_infl_predictions, data = final_data)
 ```
 
 ```{r}
@@ -673,7 +805,7 @@ p_32
 ```
 
 ```{r}
-ggsave("~/work/World-Cup-2026/results/plot_diag_infl_round_of_32.png", plot = p2, width = 20, height = 15, dpi = 300)
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_round_of_32.png", plot = p_32, width = 20, height = 15, dpi = 300)
 ```
 
 
