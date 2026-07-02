@@ -380,7 +380,7 @@ diag_infl_without_world_cup <- stan_foot(
 ```
 
 ```{r}
-diag_infl_without_world_cup <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_without_world_cup.rds")
+# diag_infl_without_world_cup <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_without_world_cup.rds")
 ```
 
 # Extraction of the posteriors and initilization of the priors
@@ -702,7 +702,7 @@ diag_infl_predictions <- stan_foot(
   model = "diag_infl_biv_pois",
   predict = 16,
   ranking = ranking_worldcup,
-  init = inits_pred2,
+  init = 0,
   home_effect = FALSE,
   chains = 4, parallel_chains = 4,
   iter_sampling = 1000,
