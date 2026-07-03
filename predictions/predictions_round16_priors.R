@@ -134,13 +134,13 @@ wc_played_round32 <- data.frame(
                 "BELGIUM","UNITEDSTATES","SPAIN","PORTUGAL",
                 "SWITZERLAND","AUSTRALIA","ARGENTINA","COLOMBIA"),
   home_goals = c(0,2,1,1,1,3,2,2,
-                 3,2),
+                 3,2,3,2,2),
   away_team = c("CANADA","JAPAN","PARAGUAY","MOROCCO",
                 "NORWAY","SWEDEN","ECUADOR","DRCONGO",
                 "SENEGAL","BOSNIAANDHERZEGOVINA","AUSTRIA","CROATIA",
                 "ALGERIA","EGYPT","CAPEVERDE","GHANA"),
   away_goals = c(1,1,1,1,2,0,0,1,
-                 2,0)
+                 2,0,0,1,0)
 )
 
 wc_future <- data.frame(
