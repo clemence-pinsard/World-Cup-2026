@@ -33,6 +33,8 @@ fit_m1 <- stan_foot(
 
 saveRDS(fit_m1, "~/work/World-Cup-2026/results/diag_infl_M1_nonWC.rds")
 
+# fit_m1 <- readRDS("~/work/World-Cup-2026/results/diag_infl_M1_nonWC.rds")
+
 # --- Posterior mean/sd of att and def per team (last period) ---
 extract_team_prior <- function(cmdstan_fit, par, teams, period = NULL) {
   d    <- posterior::as_draws_df(cmdstan_fit$draws(par))
@@ -106,7 +108,7 @@ wc_played_groupstage2 <- data.frame(
 )
 
 wc_played_groupstage3 <- data.frame(
-  periods = rep(1,12),
+  periods = rep(1,24),
   home_team = c("SWITZERLAND","BOSNIAANDHERZEGOVINA","MOROCCO","SCOTLAND",
                 "SOUTHAFRICA","CZECHREPUBLIC","CURACAO","ECUADOR",
                 "TUNISIA","JAPAN","TURKEY","PARAGUAY",
@@ -127,7 +129,7 @@ wc_played_groupstage3 <- data.frame(
                  5,1,2,1,0,1,3,3)
 )
 
-wc_played_round32 <- data.frame(
+wc_future <- data.frame(
   periods = rep(1,16),
   home_team = c("SOUTHAFRICA","BRAZIL","GERMANY","NETHERLANDS",
                 "IVORYCOAST","FRANCE","MEXICO","ENGLAND",
@@ -173,12 +175,13 @@ fit_m2_base <- stan_foot(
   model         = "diag_infl_biv_pois",
   predict       = n_pred,
   ranking       = ranking_m2,
+  init = 0,
   dynamic_type  = "seasonal",
   home_effect   = FALSE,
   chains        = 4, parallel_chains = 4,
   iter_warmup   = 1000,
   iter_sampling = 1000,
-  seed          = 456
+  seed          = 123
 )
 
 # --- Fit with informative priors ---
@@ -194,6 +197,7 @@ mod_inf <- cmdstan_model(stan_informative)
 fit_m2_inf <- mod_inf$sample(
   data          = sdata,
   chains        = 4, parallel_chains = 4,
+  init = 0,
   iter_warmup   = 1000,
   iter_sampling = 1000,
   adapt_delta   = 0.9,

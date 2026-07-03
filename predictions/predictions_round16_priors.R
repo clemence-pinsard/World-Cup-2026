@@ -146,10 +146,10 @@ wc_played_round32 <- data.frame(
 wc_future <- data.frame(
   periods = rep(1,8),
   home_team = c("CANADA","PARAGUAY","BRAZIL","MEXICO",
-                "UNITEDSTATES"),
+                "PORTUGAL","UNITEDSTATES"),
   home_goals = rep(NA_real_,8),
   away_team = c("MOROCCO","FRANCE","NORWAY","ENGLAND",
-                "BELGIUM"),
+                "SPAIN","BELGIUM"),
   away_goals = rep(NA_real_,8)
 )
 
