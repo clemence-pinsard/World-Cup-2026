@@ -129,7 +129,7 @@ ranking_footBayes_clean <- ranking_footBayes_clean %>%
   mutate(rank_points = if_else(periods == 27, rank_points / 100, rank_points))
 ```
 
-# The predictions for the first day of groupstage 3
+# The predictions for the round of 32
 
 
 ## The Diaginal Inflated Bivariate Poisson model 

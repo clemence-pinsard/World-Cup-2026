@@ -57,13 +57,13 @@ results_round32 <- data.frame(
                 "BELGIUM","UNITEDSTATES","SPAIN","PORTUGAL",
                 "SWITZERLAND","AUSTRALIA","ARGENTINA","COLOMBIA"),
   home_goals = c(0,2,1,1,1,3,2,2,
-                 3,2,3,2,2),
+                 3,2,3,2,2,1,3,1),
   away_team = c("CANADA","JAPAN","PARAGUAY","MOROCCO",
                 "NORWAY","SWEDEN","ECUADOR","DRCONGO",
                 "SENEGAL","BOSNIAANDHERZEGOVINA","AUSTRIA","CROATIA",
                 "ALGERIA","EGYPT","CAPEVERDE","GHANA"),
   away_goals = c(1,1,1,1,2,0,0,1,
-                 2,0,0,1,0)
+                 2,0,0,1,0,1,2,0)
 )
 ```
 
@@ -71,10 +71,10 @@ results_round32 <- data.frame(
 games_round16 <- data.frame(
   periods = rep(1,8),
   home_team = c("CANADA","PARAGUAY","BRAZIL","MEXICO",
-                "PORTUGAL","UNITEDSTATES"),
+                "PORTUGAL","UNITEDSTATES","ARGENTINA","SWITZERLAND"),
   home_goals = rep(NA_real_,8),
   away_team = c("MOROCCO","FRANCE","NORWAY","ENGLAND",
-                "SPAIN","BELGIUM"),
+                "SPAIN","BELGIUM","EGYPT","COLOMBIA"),
   away_goals = rep(NA_real_,8)
 )
 ```
@@ -119,7 +119,7 @@ ranking_footBayes_clean <- ranking_footBayes_clean %>%
   mutate(rank_points = if_else(periods == 27, rank_points / 100, rank_points))
 ```
 
-# The predictions for the first day of groupstage 3
+# The predictions for the round of 16
 
 
 ## The Diaginal Inflated Bivariate Poisson model 
