@@ -14,6 +14,8 @@ n_total  <- nrow(results_footBayes_ready)
 n_train  <- n_total - n_future
 
 data_nonwc <- results_footBayes_ready[seq_len(n_train), ]
+data_nonwc <- data_nonwc[data_nonwc$home_team != "HONGKONG" & 
+                           data_nonwc$away_team != "HONGKONG", ]
 teams_m1   <- unique(data_nonwc$home_team)
 ranking_m1 <- ranking_footBayes %>% filter(team %in% teams_m1) %>% 
   mutate(rank_points = if_else(periods == 27, rank_points / 100, rank_points)) %>% 
@@ -153,17 +155,17 @@ wc_played_round16 <- data.frame(
   periods = rep(1,8),
   home_team = c("CANADA","PARAGUAY","BRAZIL","MEXICO",
                 "PORTUGAL","UNITEDSTATES","ARGENTINA","SWITZERLAND"),
-  home_goals = c(0,0,1,2,0,1,,),
+  home_goals = c(0,0,1,2,0,1,3,0),
   away_team = c("MOROCCO","FRANCE","NORWAY","ENGLAND",
                 "SPAIN","BELGIUM","EGYPT","COLOMBIA"),
-  away_goals = c(3,1,2,3,0,4,,)
+  away_goals = c(3,1,2,3,0,4,2,0)
 )
 
 wc_future <- data.frame(
   periods = rep(1,4),
-  home_team = c("FRANCE","SPAIN","NORWAY",""),
+  home_team = c("FRANCE","SPAIN","NORWAY","ARGENTINA"),
   home_goals = rep(NA_real_,4),
-  away_team = c("MOROCCO","BELGIUM","ENGLAND",""),
+  away_team = c("MOROCCO","BELGIUM","ENGLAND","SWITZERLAND"),
   away_goals = rep(NA_real_,4)
 )
 
@@ -334,8 +336,8 @@ p_16 <- p_16 + guides(color = "none")
 p_16
 
 write.csv(prob_inf$prob_table, 
-          file = "~/work/World-Cup-2026/results/round16_diag_infl_biv_pois_priors.csv", 
+          file = "~/work/World-Cup-2026/results/quarter_diag_infl_biv_pois_priors.csv", 
           row.names = FALSE)
 
-ggsave("~/work/World-Cup-2026/results/plot_diag_infl_16_priors.png", plot = p_16, width = 20, height = 15, dpi = 300)
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_quarter_priors.png", plot = p_16, width = 20, height = 15, dpi = 300)
 
