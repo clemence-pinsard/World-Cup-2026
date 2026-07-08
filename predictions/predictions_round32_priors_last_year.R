@@ -14,12 +14,10 @@ n_total  <- nrow(results_footBayes_ready)
 n_train  <- n_total - n_future
 
 data_nonwc <- results_footBayes_ready[seq_len(n_train), ]
-data_nonwc <- data_nonwc[data_nonwc$home_team != "HONGKONG" & 
-                           data_nonwc$away_team != "HONGKONG", ]
 teams_m1   <- unique(data_nonwc$home_team)
 ranking_m1 <- ranking_footBayes %>% filter(team %in% teams_m1) %>% 
-  mutate(rank_points = if_else(periods == 27, rank_points / 100, rank_points)) %>% 
-  filter(periods != 31)
+  mutate(rank_points = if_else(periods == 4, rank_points / 100, rank_points)) %>% 
+  filter(periods != 8)
 
 fit_m1 <- stan_foot(
   data          = data_nonwc,
@@ -35,11 +33,11 @@ fit_m1 <- stan_foot(
   seed          = 123
 )
 
-fit_m1$fit$save_object(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC.rds")
+fit_m1$fit$save_object(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
 
-saveRDS(fit_m1, "~/work/World-Cup-2026/results/diag_infl_M1_nonWC2.rds")
+saveRDS(fit_m1, "~/work/World-Cup-2026/results/diag_infl_M1_nonWC2_2025.rds")
 
-fit_m1 <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC.rds")
+fit_m1 <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
 
 # --- Posterior mean/sd of att and def per team (last period) ---
 extract_team_prior <- function(cmdstan_fit, par, teams, period = NULL) {
@@ -135,33 +133,21 @@ wc_played_groupstage3 <- data.frame(
                  5,1,2,1,0,1,3,3)
 )
 
-wc_played_round32 <- data.frame(
+wc_future <- data.frame(
   periods = rep(1,16),
   home_team = c("SOUTHAFRICA","BRAZIL","GERMANY","NETHERLANDS",
                 "IVORYCOAST","FRANCE","MEXICO","ENGLAND",
                 "BELGIUM","UNITEDSTATES","SPAIN","PORTUGAL",
                 "SWITZERLAND","AUSTRALIA","ARGENTINA","COLOMBIA"),
-  home_goals = c(0,2,1,1,1,3,2,2,
-                 3,2,3,2,2,1,3,1),
+  home_goals = rep(NA_real_,16),
   away_team = c("CANADA","JAPAN","PARAGUAY","MOROCCO",
                 "NORWAY","SWEDEN","ECUADOR","DRCONGO",
                 "SENEGAL","BOSNIAANDHERZEGOVINA","AUSTRIA","CROATIA",
                 "ALGERIA","EGYPT","CAPEVERDE","GHANA"),
-  away_goals = c(1,1,1,1,2,0,0,1,
-                 2,0,0,1,0,1,2,0)
+  away_goals = rep(NA_real_,16)
 )
 
-wc_future <- data.frame(
-  periods = rep(1,8),
-  home_team = c("CANADA","PARAGUAY","BRAZIL","MEXICO",
-                "PORTUGAL","UNITEDSTATES","ARGENTINA","SWITZERLAND"),
-  home_goals = rep(NA_real_,8),
-  away_team = c("MOROCCO","FRANCE","NORWAY","ENGLAND",
-                "SPAIN","BELGIUM","EGYPT","COLOMBIA"),
-  away_goals = rep(NA_real_,8)
-)
-
-wc_data <- rbind(wc_played_groupstage1, wc_played_groupstage2, wc_played_groupstage3, wc_played_round32, wc_future)
+wc_data <- rbind(wc_played_groupstage1, wc_played_groupstage2, wc_played_groupstage3, wc_future)
 n_pred  <- nrow(wc_future)
 
 teams_m2   <- unique(wc_data$home_team)
@@ -328,8 +314,8 @@ p_16 <- p_16 + guides(color = "none")
 p_16
 
 write.csv(prob_inf$prob_table, 
-          file = "~/work/World-Cup-2026/results/round16_diag_infl_biv_pois_priors.csv", 
+          file = "~/work/World-Cup-2026/results/round32_diag_infl_biv_pois_priors_2025.csv", 
           row.names = FALSE)
 
-ggsave("~/work/World-Cup-2026/results/plot_diag_infl_16_priors.png", plot = p_16, width = 20, height = 15, dpi = 300)
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_32_priors_2025.png", plot = p_16, width = 20, height = 15, dpi = 300)
 

@@ -33,11 +33,11 @@ fit_m1 <- stan_foot(
   seed          = 123
 )
 
-fit_m1$fit$save_object(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC.rds")
+fit_m1$fit$save_object(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
 
-saveRDS(fit_m1, "~/work/World-Cup-2026/results/diag_infl_M1_nonWC2.rds")
+saveRDS(fit_m1, "~/work/World-Cup-2026/results/diag_infl_M1_nonWC2_2025.rds")
 
-fit_m1 <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC.rds")
+fit_m1 <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
 
 # --- Posterior mean/sd of att and def per team (last period) ---
 extract_team_prior <- function(cmdstan_fit, par, teams, period = NULL) {
@@ -149,25 +149,17 @@ wc_played_round32 <- data.frame(
                  2,0,0,1,0,1,2,0)
 )
 
-wc_played_round16 <- data.frame(
+wc_future <- data.frame(
   periods = rep(1,8),
   home_team = c("CANADA","PARAGUAY","BRAZIL","MEXICO",
                 "PORTUGAL","UNITEDSTATES","ARGENTINA","SWITZERLAND"),
-  home_goals = c(0,0,1,2),
+  home_goals = rep(NA_real_,8),
   away_team = c("MOROCCO","FRANCE","NORWAY","ENGLAND",
                 "SPAIN","BELGIUM","EGYPT","COLOMBIA"),
-  away_goals = c(3,1,2,3)
+  away_goals = rep(NA_real_,8)
 )
 
-wc_future <- data.frame(
-  periods = rep(1,4),
-  home_team = c("FRANCE","","NORWAY",""),
-  home_goals = rep(NA_real_,4),
-  away_team = c("MOROCCO","","ENGLAND",""),
-  away_goals = rep(NA_real_,4)
-)
-
-wc_data <- rbind(wc_played_groupstage1, wc_played_groupstage2, wc_played_groupstage3, wc_played_round32, wc_played_round16, wc_future)
+wc_data <- rbind(wc_played_groupstage1, wc_played_groupstage2, wc_played_groupstage3, wc_played_round32, wc_future)
 n_pred  <- nrow(wc_future)
 
 teams_m2   <- unique(wc_data$home_team)
@@ -334,8 +326,8 @@ p_16 <- p_16 + guides(color = "none")
 p_16
 
 write.csv(prob_inf$prob_table, 
-          file = "~/work/World-Cup-2026/results/round16_diag_infl_biv_pois_priors.csv", 
+          file = "~/work/World-Cup-2026/results/round16_diag_infl_biv_pois_priors_2025.csv", 
           row.names = FALSE)
 
-ggsave("~/work/World-Cup-2026/results/plot_diag_infl_16_priors.png", plot = p_16, width = 20, height = 15, dpi = 300)
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_16_priors_2025.png", plot = p_16, width = 20, height = 15, dpi = 300)
 
