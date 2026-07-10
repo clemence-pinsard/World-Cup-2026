@@ -230,7 +230,7 @@ fit_m2_inf <- mod_inf$sample(
   seed          = 456
 )
 
-# --- Match probabilities ---
+# --- Match probabilities and difference of goals between the teams ---
 out_inf <- list(
   fit        = fit_m2_inf,
   data       = wc_data,
@@ -241,24 +241,56 @@ out_inf <- list(
 )
 class(out_inf) <- c("stanFoot", "footBayes")
 
+yp <- posterior::as_draws_matrix(fit_m2_inf$draws("y_prev"))
+
+goal_diff_stats <- function(n) {
+  h    <- yp[, sprintf("y_prev[%d,1]", n)]
+  a    <- yp[, sprintf("y_prev[%d,2]", n)]
+  diff <- h - a
+  
+  data.frame(
+    goal_diff_mean     = mean(diff),
+    goal_diff_median   = median(diff),
+    goal_diff_sd       = sd(diff),
+    goal_diff_q05      = quantile(diff, 0.05),
+    goal_diff_q95      = quantile(diff, 0.95),
+    most_likely_score  = {
+      tab <- table(paste(h, a, sep = "-"))
+      names(tab)[which.max(tab)]
+    }
+  )
+}
+
 prob_inf <- tryCatch(
-  foot_prob(object = out_inf, data = wc_data),
+  {
+    res <- foot_prob(object = out_inf, data = wc_data)
+    
+    # on ajoute l'écart de buts au résultat de foot_prob
+    gd <- do.call(rbind, lapply(seq_len(n_pred), goal_diff_stats))
+    res$prob_table <- cbind(res$prob_table, gd)
+    res
+  },
   error = function(e) {
-    yp <- posterior::as_draws_matrix(fit_m2_inf$draws("y_prev"))
     res <- lapply(seq_len(n_pred), function(n) {
       h <- yp[, sprintf("y_prev[%d,1]", n)]
       a <- yp[, sprintf("y_prev[%d,2]", n)]
-      data.frame(
-        home     = wc_future$home_team[n],
-        away     = wc_future$away_team[n],
-        home_win = mean(h > a),
-        draw     = mean(h == a),
-        away_win = mean(h < a)
+      
+      cbind(
+        data.frame(
+          home     = wc_future$home_team[n],
+          away     = wc_future$away_team[n],
+          home_win = mean(h > a),
+          draw     = mean(h == a),
+          away_win = mean(h < a)
+        ),
+        goal_diff_stats(n)
       )
     })
-    do.call(rbind, res)
+    list(prob_table = do.call(rbind, res), prob_plot = NULL)
   }
 )
+
+print(prob_inf$prob_table)
 
 print(prob_inf)
 
