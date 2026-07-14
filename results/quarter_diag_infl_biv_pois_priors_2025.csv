@@ -1,0 +1,5 @@
+"home_team","away_team","prob_h","prob_d","prob_a","mlo","goal_diff_mean","goal_diff_median","goal_diff_sd","goal_diff_q05","goal_diff_q95","most_likely_score"
+"FRANCE","MOROCCO",0.335,0.278,0.387,"0-1 (0.112)",-0.12075,0,1.68162909305282,-3,3,"0-1"
+"SPAIN","BELGIUM",0.394,0.25,0.357,"1-1 (0.099)",0.0945,0,2.02980289066297,-3,3,"1-1"
+"NORWAY","ENGLAND",0.311,0.242,0.446,"1-1 (0.092)",-0.3295,0,2.04315280102642,-4,3,"1-1"
+"ARGENTINA","SWITZERLAND",0.389,0.231,0.38,"1-1 (0.077)",-0.009,0,2.30374603883607,-4,4,"1-1"

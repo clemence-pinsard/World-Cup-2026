@@ -231,7 +231,7 @@ ranking_footBayes <- data.frame(
 
 ```{r}
 n_periodes <- n_distinct(ranking_footBayes$periods)
-groupstage2_teams <- unique(c(groupstage1$home_team, groupstage1$away_team))
+groupstage2_teams <- unique(c(results$home_norm, results$away_norm))
 
 equipes_completes <- ranking_footBayes %>%
   group_by(team) %>%
