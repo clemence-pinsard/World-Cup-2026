@@ -164,9 +164,9 @@ wc_played_round16 <- data.frame(
 wc_played_quarter <- data.frame(
   periods = rep(1,4),
   home_team = c("FRANCE","SPAIN","NORWAY","ARGENTINA"),
-  home_goals = c(2,2,1,3),
+  home_goals = c(2,2,1,1),
   away_team = c("MOROCCO","BELGIUM","ENGLAND","SWITZERLAND"),
-  away_goals = c(0,1,2,1)
+  away_goals = c(0,1,1,1)
 )
 
 wc_future <- data.frame(

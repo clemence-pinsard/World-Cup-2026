@@ -241,12 +241,18 @@ out_inf <- list(
 )
 class(out_inf) <- c("stanFoot", "footBayes")
 
-yp <- posterior::as_draws_matrix(fit_m2_inf$draws("y_prev"))
+yp     <- posterior::as_draws_matrix(fit_m2_inf$draws("y_prev"))
+th_all <- posterior::as_draws_matrix(fit_m2_inf$draws("theta_home_prev"))
+ta_all <- posterior::as_draws_matrix(fit_m2_inf$draws("theta_away_prev"))
+tc_all <- posterior::as_draws_matrix(fit_m2_inf$draws("theta_corr_prev"))
 
 goal_diff_stats <- function(n) {
   h    <- yp[, sprintf("y_prev[%d,1]", n)]
   a    <- yp[, sprintf("y_prev[%d,2]", n)]
   diff <- h - a
+  
+  xg_home <- th_all[, n] + tc_all[, n]
+  xg_away <- ta_all[, n] + tc_all[, n]
   
   data.frame(
     goal_diff_mean     = mean(diff),
@@ -257,7 +263,11 @@ goal_diff_stats <- function(n) {
     most_likely_score  = {
       tab <- table(paste(h, a, sep = "-"))
       names(tab)[which.max(tab)]
-    }
+    },
+    xg_home_mean = mean(xg_home),
+    xg_home_sd   = sd(xg_home),
+    xg_away_mean = mean(xg_away),
+    xg_away_sd   = sd(xg_away)
   )
 }
 
