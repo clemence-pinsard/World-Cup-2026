@@ -169,15 +169,23 @@ wc_played_quarter <- data.frame(
   away_goals = c(0,1,1,1)
 )
 
-wc_future <- data.frame(
+wc_played_semi <- data.frame(
   periods = rep(1,2),
   home_team = c("FRANCE","ENGLAND"),
-  home_goals = rep(NA_real_,2),
+  home_goals = c(0,),
   away_team = c("SPAIN","ARGENTINA"),
+  away_goals = c(2,)
+)
+
+wc_future <- data.frame(
+  periods = rep(1,2),
+  home_team = c("SPAIN","FRANCE"),
+  home_goals = rep(NA_real_,2),
+  away_team = c("",""),
   away_goals = rep(NA_real_,2)
 )
 
-wc_data <- rbind(wc_played_groupstage1, wc_played_groupstage2, wc_played_groupstage3, wc_played_round32, wc_played_round16, wc_played_quarter, wc_future)
+wc_data <- rbind(wc_played_groupstage1, wc_played_groupstage2, wc_played_groupstage3, wc_played_round32, wc_played_round16, wc_played_quarter, wc_played_semi, wc_future)
 n_pred  <- nrow(wc_future)
 
 teams_m2   <- unique(wc_data$home_team)
@@ -376,8 +384,8 @@ p_16 <- p_16 + guides(color = "none")
 p_16
 
 write.csv(prob_inf$prob_table, 
-          file = "~/work/World-Cup-2026/results/semi_diag_infl_biv_pois_priors_2025.csv", 
+          file = "~/work/World-Cup-2026/results/final_diag_infl_biv_pois_priors_2025.csv", 
           row.names = FALSE)
 
-ggsave("~/work/World-Cup-2026/results/plot_diag_infl_semi_priors_2025.png", plot = p_16, width = 20, height = 15, dpi = 300)
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_final_priors_2025.png", plot = p_16, width = 20, height = 15, dpi = 300)
 

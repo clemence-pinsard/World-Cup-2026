@@ -18,8 +18,8 @@ data_nonwc <- data_nonwc[data_nonwc$home_team != "HONGKONG" &
                            data_nonwc$away_team != "HONGKONG", ]
 teams_m1   <- unique(data_nonwc$home_team)
 ranking_m1 <- ranking_footBayes %>% filter(team %in% teams_m1) %>% 
-  mutate(rank_points = if_else(periods == 4, rank_points / 100, rank_points)) %>% 
-  filter(periods != 8)
+  mutate(rank_points = if_else(periods == 27, rank_points / 100, rank_points)) %>% 
+  filter(periods != 31)
 
 fit_m1 <- stan_foot(
   data          = data_nonwc,
@@ -35,11 +35,11 @@ fit_m1 <- stan_foot(
   seed          = 123
 )
 
-fit_m1$fit$save_object(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
+fit_m1$fit$save_object(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC.rds")
 
-saveRDS(fit_m1, "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
+saveRDS(fit_m1, "~/work/World-Cup-2026/results/diag_infl_M1_nonWC.rds")
 
-fit_m1 <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
+fit_m1 <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC.rds")
 
 # --- Posterior mean/sd of att and def per team (last period) ---
 extract_team_prior <- function(cmdstan_fit, par, teams, period = NULL) {
@@ -169,15 +169,23 @@ wc_played_quarter <- data.frame(
   away_goals = c(0,1,1,1)
 )
 
-wc_future <- data.frame(
+wc_played_semi <- data.frame(
   periods = rep(1,2),
   home_team = c("FRANCE","ENGLAND"),
-  home_goals = rep(NA_real_,2),
+  home_goals =c(0,),
   away_team = c("SPAIN","ARGENTINA"),
+  away_goals = c(2,)
+)
+
+wc_future <- data.frame(
+  periods = rep(1,2),
+  home_team = c("SPAIN","FRANCE"),
+  home_goals = rep(NA_real_,2),
+  away_team = c("",""),
   away_goals = rep(NA_real_,2)
 )
 
-wc_data <- rbind(wc_played_groupstage1, wc_played_groupstage2, wc_played_groupstage3, wc_played_round32, wc_played_round16, wc_played_quarter, wc_future)
+wc_data <- rbind(wc_played_groupstage1, wc_played_groupstage2, wc_played_groupstage3, wc_played_round32, wc_played_round16, wc_played_quarter, wc_played_semi, wc_future)
 n_pred  <- nrow(wc_future)
 
 teams_m2   <- unique(wc_data$home_team)
@@ -249,12 +257,18 @@ out_inf <- list(
 )
 class(out_inf) <- c("stanFoot", "footBayes")
 
-yp <- posterior::as_draws_matrix(fit_m2_inf$draws("y_prev"))
+yp     <- posterior::as_draws_matrix(fit_m2_inf$draws("y_prev"))
+th_all <- posterior::as_draws_matrix(fit_m2_inf$draws("theta_home_prev"))
+ta_all <- posterior::as_draws_matrix(fit_m2_inf$draws("theta_away_prev"))
+tc_all <- posterior::as_draws_matrix(fit_m2_inf$draws("theta_corr_prev"))
 
 goal_diff_stats <- function(n) {
   h    <- yp[, sprintf("y_prev[%d,1]", n)]
   a    <- yp[, sprintf("y_prev[%d,2]", n)]
   diff <- h - a
+  
+  xg_home <- th_all[, n] + tc_all[, n]
+  xg_away <- ta_all[, n] + tc_all[, n]
   
   data.frame(
     goal_diff_mean     = mean(diff),
@@ -265,7 +279,11 @@ goal_diff_stats <- function(n) {
     most_likely_score  = {
       tab <- table(paste(h, a, sep = "-"))
       names(tab)[which.max(tab)]
-    }
+    },
+    xg_home_mean = mean(xg_home),
+    xg_home_sd   = sd(xg_home),
+    xg_away_mean = mean(xg_away),
+    xg_away_sd   = sd(xg_away)
   )
 }
 
@@ -376,8 +394,8 @@ p_16 <- p_16 + guides(color = "none")
 p_16
 
 write.csv(prob_inf$prob_table, 
-          file = "~/work/World-Cup-2026/results/semi_diag_infl_biv_pois_priors_2025.csv", 
+          file = "~/work/World-Cup-2026/results/final_diag_infl_biv_pois_priors.csv", 
           row.names = FALSE)
 
-ggsave("~/work/World-Cup-2026/results/plot_diag_infl_semi_priors_2025.png", plot = p_16, width = 20, height = 15, dpi = 300)
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_final_priors.png", plot = p_16, width = 20, height = 15, dpi = 300)
 
