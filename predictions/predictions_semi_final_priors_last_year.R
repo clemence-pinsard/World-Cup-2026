@@ -21,7 +21,7 @@ ranking_m1 <- ranking_footBayes %>% filter(team %in% teams_m1) %>%
   mutate(rank_points = if_else(periods == 4, rank_points / 100, rank_points)) %>% 
   filter(periods != 8)
 
-fit_m1 <- stan_foot(
+fit_m1_2 <- stan_foot(
   data          = data_nonwc,
   model         = "diag_infl_biv_pois",
   predict       = 0,

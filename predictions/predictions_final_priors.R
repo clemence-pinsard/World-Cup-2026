@@ -172,16 +172,16 @@ wc_played_quarter <- data.frame(
 wc_played_semi <- data.frame(
   periods = rep(1,2),
   home_team = c("FRANCE","ENGLAND"),
-  home_goals =c(0,),
+  home_goals =c(0,1),
   away_team = c("SPAIN","ARGENTINA"),
-  away_goals = c(2,)
+  away_goals = c(2,2)
 )
 
 wc_future <- data.frame(
   periods = rep(1,2),
   home_team = c("SPAIN","FRANCE"),
   home_goals = rep(NA_real_,2),
-  away_team = c("",""),
+  away_team = c("ARGENTINA","ENGLAND"),
   away_goals = rep(NA_real_,2)
 )
 
