@@ -1,0 +1,3 @@
+"home_team","away_team","prob_h","prob_d","prob_a","mlo","goal_diff_mean","goal_diff_median","goal_diff_sd","goal_diff_q05","goal_diff_q95","most_likely_score","xg_home_mean","xg_home_sd","xg_away_mean","xg_away_sd"
+"SPAIN","ARGENTINA",0.428,0.301,0.271,"1-0 (0.148)",0.3605,0,1.51644803856361,-2,3,"0-0",1.21103049155275,0.45735609292432,0.85280504598775,0.259955676950209
+"FRANCE","ENGLAND",0.42,0.27,0.31,"1-1 (0.118)",0.27225,0,1.65493644626018,-2,3,"1-1",1.40357236299275,0.471757214744722,1.14060452866525,0.34957149756743

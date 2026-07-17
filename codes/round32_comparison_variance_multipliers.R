@@ -17,7 +17,9 @@ data_nonwc <- results_footBayes_ready[seq_len(n_train), ]
 data_nonwc <- data_nonwc[data_nonwc$home_team != "HONGKONG" & 
                            data_nonwc$away_team != "HONGKONG", ]
 teams_m1   <- unique(data_nonwc$home_team)
-ranking_m1 <- ranking_footBayes %>% filter(team %in% teams_m1)
+ranking_m1 <- ranking_footBayes %>% filter(team %in% teams_m1) %>% 
+  mutate(rank_points = if_else(periods == 27, rank_points / 100, rank_points)) %>% 
+  filter(periods != 31)
 
 fit_m1 <- stan_foot(
   data          = data_nonwc,

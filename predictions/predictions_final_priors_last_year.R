@@ -21,7 +21,7 @@ ranking_m1 <- ranking_footBayes %>% filter(team %in% teams_m1) %>%
   mutate(rank_points = if_else(periods == 4, rank_points / 100, rank_points)) %>% 
   filter(periods != 8)
 
-fit_m1 <- stan_foot(
+fit_m1_2 <- stan_foot(
   data          = data_nonwc,
   model         = "diag_infl_biv_pois",
   predict       = 0,
@@ -35,11 +35,11 @@ fit_m1 <- stan_foot(
   seed          = 123
 )
 
-fit_m1$fit$save_object(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
+fit_m1_2$fit$save_object(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
 
-saveRDS(fit_m1, "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
+saveRDS(fit_m1_2, "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
 
-fit_m1 <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
+fit_m1_2 <- readRDS(file = "~/work/World-Cup-2026/results/diag_infl_M1_nonWC_2025.rds")
 
 # --- Posterior mean/sd of att and def per team (last period) ---
 extract_team_prior <- function(cmdstan_fit, par, teams, period = NULL) {
@@ -65,8 +65,8 @@ extract_team_prior <- function(cmdstan_fit, par, teams, period = NULL) {
   )
 }
 
-att_m1 <- extract_team_prior(fit_m1$fit, "att", teams_m1)
-def_m1 <- extract_team_prior(fit_m1$fit, "def", teams_m1)
+att_m1 <- extract_team_prior(fit_m1_2$fit, "att", teams_m1)
+def_m1 <- extract_team_prior(fit_m1_2$fit, "def", teams_m1)
 
 # --- Stage 2: World-Cup matches only ---
 wc_played_groupstage1 <- data.frame(

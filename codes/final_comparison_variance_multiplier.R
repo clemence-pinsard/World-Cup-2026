@@ -149,17 +149,41 @@ wc_played_round32 <- data.frame(
                  2,0,0,1,0,1,2,0)
 )
 
-wc_future <- data.frame(
+wc_played_round16 <- data.frame(
   periods = rep(1,8),
   home_team = c("CANADA","PARAGUAY","BRAZIL","MEXICO",
                 "PORTUGAL","UNITEDSTATES","ARGENTINA","SWITZERLAND"),
-  home_goals = rep(NA_real_,8),
+  home_goals = c(0,0,1,2,0,1,3,0),
   away_team = c("MOROCCO","FRANCE","NORWAY","ENGLAND",
                 "SPAIN","BELGIUM","EGYPT","COLOMBIA"),
-  away_goals = rep(NA_real_,8)
+  away_goals = c(3,1,2,3,0,4,2,0)
 )
 
-wc_data <- rbind(wc_played_groupstage1, wc_played_groupstage2, wc_played_groupstage3, wc_played_round32, wc_future)
+wc_played_quarter <- data.frame(
+  periods = rep(1,4),
+  home_team = c("FRANCE","SPAIN","NORWAY","ARGENTINA"),
+  home_goals = c(2,2,1,1),
+  away_team = c("MOROCCO","BELGIUM","ENGLAND","SWITZERLAND"),
+  away_goals = c(0,1,1,1)
+)
+
+wc_played_semi <- data.frame(
+  periods = rep(1,2),
+  home_team = c("FRANCE","ENGLAND"),
+  home_goals = c(0,1),
+  away_team = c("SPAIN","ARGENTINA"),
+  away_goals = c(2,2)
+)
+
+wc_future <- data.frame(
+  periods = rep(1,2),
+  home_team = c("SPAIN","FRANCE"),
+  home_goals = rep(NA_real_,2),
+  away_team = c("ARGENTINA","ENGLAND"),
+  away_goals = rep(NA_real_,2)
+)
+
+wc_data <- rbind(wc_played_groupstage1, wc_played_groupstage2, wc_played_groupstage3, wc_played_round32,wc_played_round16, wc_played_quarter, wc_played_semi, wc_future)
 n_pred  <- nrow(wc_future)
 
 teams_m2   <- unique(wc_data$home_team)
