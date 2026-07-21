@@ -376,42 +376,6 @@ results_footBayes_ready <- results_footBayes %>%
 
 # The predictions for the first day of groupstage ()
 
-## The Double Poisson model
-
-```{r}
-#double_poisson2 <- stan_foot(
-#  data = groupstage1,
-#  model = "double_pois",
-#  predict = 24,
-#  init = 0,
-#  ranking = ranking_footBayes_clean,
-#  dynamic_type = "seasonal",
-#  home_effect = FALSE,
-#  chains = 4,
-#  iter_sampling = 1000,
-#  iter_warmup = 1000,
-#  seed = 123
-#)
-```
-
-```{r}
-# prob_double_poisson2 <- foot_prob(object = double_poisson2, data = results_footBayes_ready)
-```
-
-```{r}
-# colnames(prob_double_poisson2$prob_table) <- c(
-#       "home",
-#       "away",
-#       "home win",
-#       "draw",
-#       "away win",
-#       "mlo"
-#     )
-
-# prob_double_poisson2$prob_table
-```
-
-
 ## The Diaginal Inflated Bivariate Poisson model 
 
 ```{r}
@@ -425,7 +389,7 @@ ranking_footBayes_clean <- ranking_footBayes %>%
 
 
 ```{r}
-diag_infl <- stan_foot(
+fit_gs1 <- stan_foot(
   data = groupstage1,
   model = "diag_infl_biv_pois",
   predict = 24,
@@ -441,7 +405,7 @@ diag_infl <- stan_foot(
 ```
 
 ```{r}
-prob_diag_infl <- foot_prob(object = diag_infl, data = groupstage1)
+prob_diag_infl <- foot_prob(object = fit_gs1, data = groupstage1)
 ```
 
 ```{r}
@@ -544,9 +508,7 @@ ggsave("results/plot_diag_infl2.png", plot = p, width = 20, height = 15, dpi = 3
 
 Posterior  matches probabilities from the posterior predictive distribution of the model above are displayed in the table below. **mlo** denotes the most likely exact outcome (in parenthesis, the corresponding posterior probability). Darker regions in the plots below denote more likely outcomes: on the $x$-axis the home goals, on the $y$-axis the away goals. 
 
-```{r}
-# saveRDS(diag_infl, file = "results/diag_infl_groupstage1.rds")
-```
+
 
 
 

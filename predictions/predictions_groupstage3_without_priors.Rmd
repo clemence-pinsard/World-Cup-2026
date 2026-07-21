@@ -139,7 +139,7 @@ ranking_footBayes_clean <- ranking_footBayes_clean %>%
 ## The Diaginal Inflated Bivariate Poisson model 
 
 ```{r}
-diag_infl_j3 <- stan_foot(
+fit_gs3 <- stan_foot(
   data = groupstage3,
   model = "diag_infl_biv_pois",
   predict = 24,
@@ -258,9 +258,7 @@ ggsave("~/work/World-Cup-2026/results/plot_diag_infl_j3.png", plot = p3, width =
 
 Posterior  matches probabilities from the posterior predictive distribution of the model above are displayed in the table below. **mlo** denotes the most likely exact outcome (in parenthesis, the corresponding posterior probability). Darker regions in the plots below denote more likely outcomes: on the $x$-axis the home goals, on the $y$-axis the away goals. 
 
-```{r}
-saveRDS(diag_infl_j3, file = "~/work/World-Cup-2026/results/diag_infl_groupstage3.rds")
-```
+
 
 
 
