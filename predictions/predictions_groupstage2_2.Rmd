@@ -483,11 +483,11 @@ fit_gs2 <- stan_foot(
 ```
 
 ```{r}
-prob_diag_infl_j2 <- foot_prob(object = diag_infl_j2, data = groupstage2)
+prob_diag_infl_gs2 <- foot_prob(object = fit_gs2, data = groupstage2)
 ```
 
 ```{r}
-colnames(prob_diag_infl_j2$prob_table) <- c(
+colnames(prob_diag_infl_gs2$prob_table) <- c(
       "home",
       "away",
       "home win",
@@ -496,11 +496,11 @@ colnames(prob_diag_infl_j2$prob_table) <- c(
       "mlo"
     )
 
-prob_diag_infl_j2$prob_table
+prob_diag_infl_gs2$prob_table
 ```
 
 ```{r}
-write.csv(prob_diag_infl_j2$prob_table, 
+write.csv(prob_diag_infl_gs2$prob_table, 
           file = "~/work/World-Cup-2026/results/groupstage2_diag_infl_biv_pois.csv", 
           row.names = FALSE)
 ```
@@ -557,37 +557,75 @@ new_names <- c(
   "CROATIA" = "Croatia"
 )
 
-p2 <- prob_diag_infl_j2$prob_plot
+p_gs2 <- prob_diag_infl_gs2$prob_plot
 
 for (old in names(new_names)) {
-  p2$data$new_matches <- gsub(old, new_names[old], p2$data$new_matches, ignore.case = TRUE)
+  p_gs2$data$new_matches <- gsub(old, new_names[old], p_gs2$data$new_matches, ignore.case = TRUE)
 }
 
-p2$theme$axis.text.x$size <- 10
-p2$theme$axis.text.y$size <- 10
-p2$theme$axis.title$size  <- 10
-p2$theme$strip.text$size  <- 10 
+p_gs2$theme$axis.text.x$size <- 10
+p_gs2$theme$axis.text.y$size <- 10
+p_gs2$theme$axis.title$size  <- 10
+p_gs2$theme$strip.text$size  <- 10 
 
-p2 <- p2 + theme(
+p_gs2 <- p_gs2 + theme(
   strip.text = element_text(size = 10, face = "bold"),  
   axis.text  = element_text(size = 10),                 
   axis.title = element_text(size = 10, face = "bold"), 
   plot.title = element_text(size = 14, face = "bold") 
 )
 
-p2 <- p2 + guides(color = "none")
+p_gs2 <- p_gs2 + guides(color = "none")
 
-p2
+p_gs2
 ```
 
 ```{r}
-ggsave("~/work/World-Cup-2026/results/plot_diag_infl_j2.png", plot = p2, width = 20, height = 15, dpi = 300)
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_j2.png", plot = p_gs2, width = 20, height = 15, dpi = 300)
 ```
 
 Posterior  matches probabilities from the posterior predictive distribution of the model above are displayed in the table below. **mlo** denotes the most likely exact outcome (in parenthesis, the corresponding posterior probability). Darker regions in the plots below denote more likely outcomes: on the $x$-axis the home goals, on the $y$-axis the away goals. 
 
+```{r}
+n_prev <- 24   # correspond à predict = 24 dans stan_foot()
+
+draws_prev <- as_draws_matrix(fit_gs2$fit$draws("y_prev"))   # adaptez le nom si besoin
+
+home_cols <- sprintf("y_prev[%d,1]", seq_len(n_prev))
+away_cols <- sprintf("y_prev[%d,2]", seq_len(n_prev))
+
+pred_home <- draws_prev[, home_cols]
+pred_away <- draws_prev[, away_cols]
+
+goal_diff_draws <- pred_home - pred_away   # matrice n_draws x n_prev
+
+goal_diff_table <- data.frame(
+  goal_diff_mean = colMeans(goal_diff_draws),
+  goal_diff_sd   = apply(goal_diff_draws, 2, sd)
+)
+```
+
+```{r}
+nrow(goal_diff_table) == nrow(prob_diag_infl_gs2$prob_table)   # doit être TRUE (24 == 24)
+
+# Vérification visuelle rapide : les deux doivent correspondre au même match
+cbind(prob_diag_infl_gs2$prob_table[, 1:2], goal_diff_table) %>% head()
+```
 
 
+```{r}
+prob_diag_infl_gs2$prob_table <- bind_cols(prob_diag_infl_gs2$prob_table, goal_diff_table)
+
+colnames(prob_diag_infl_gs2$prob_table) <- c(
+  "home", "away", "home_win", "draw", "away_win", "mlo",
+  "goal_diff_mean", "goal_diff_sd"
+)
+```
 
 
+```{r}
+write.csv(prob_diag_infl_gs2$prob_table, 
+          file = "~/work/World-Cup-2026/val/groupstage2.csv", 
+          row.names = FALSE)
+```
 

@@ -135,7 +135,7 @@ ranking_footBayes_clean <- ranking_footBayes_clean %>%
 ## The Diaginal Inflated Bivariate Poisson model 
 
 ```{r}
-diag_infl_32 <- stan_foot(
+fit_r32 <- stan_foot(
   data = round32,
   model = "diag_infl_biv_pois",
   predict = 16,
@@ -151,7 +151,7 @@ diag_infl_32 <- stan_foot(
 ```
 
 ```{r}
-prob_diag_infl_32 <- foot_prob(object = diag_infl_32, data = round32)
+prob_diag_infl_32 <- foot_prob(object = fit_r32, data = round32)
 ```
 
 ```{r}
@@ -225,39 +225,75 @@ new_names <- c(
   "CROATIA" = "Croatia"
 )
 
-p3 <- prob_diag_infl_32$prob_plot
+p_32 <- prob_diag_infl_32$prob_plot
 
 for (old in names(new_names)) {
-  p3$data$new_matches <- gsub(old, new_names[old], p3$data$new_matches, ignore.case = TRUE)
+  p_32$data$new_matches <- gsub(old, new_names[old], p_32$data$new_matches, ignore.case = TRUE)
 }
 
-p3$theme$axis.text.x$size <- 10
-p3$theme$axis.text.y$size <- 10
-p3$theme$axis.title$size  <- 10
-p3$theme$strip.text$size  <- 10 
+p_32$theme$axis.text.x$size <- 10
+p_32$theme$axis.text.y$size <- 10
+p_32$theme$axis.title$size  <- 10
+p_32$theme$strip.text$size  <- 10 
 
-p3 <- p3 + theme(
+p_32 <- p_32 + theme(
   strip.text = element_text(size = 10, face = "bold"),  
   axis.text  = element_text(size = 10),                 
   axis.title = element_text(size = 10, face = "bold"), 
   plot.title = element_text(size = 14, face = "bold") 
 )
 
-p3 <- p3 + guides(color = "none")
+p_32 <- p_32 + guides(color = "none")
 
-p3
+p_32
 ```
 
 ```{r}
-ggsave("~/work/World-Cup-2026/results/plot_diag_infl_32.png", plot = p3, width = 20, height = 15, dpi = 300)
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_32.png", plot = p_32, width = 20, height = 15, dpi = 300)
 ```
 
 Posterior  matches probabilities from the posterior predictive distribution of the model above are displayed in the table below. **mlo** denotes the most likely exact outcome (in parenthesis, the corresponding posterior probability). Darker regions in the plots below denote more likely outcomes: on the $x$-axis the home goals, on the $y$-axis the away goals. 
 
+
 ```{r}
-saveRDS(diag_infl_j3, file = "~/work/World-Cup-2026/results/diag_infl_groupstage3.rds")
+n_prev <- 16   # correspond à predict = 24 dans stan_foot()
+
+draws_prev <- as_draws_matrix(fit_r32$fit$draws("y_prev"))   # adaptez le nom si besoin
+
+home_cols <- sprintf("y_prev[%d,1]", seq_len(n_prev))
+away_cols <- sprintf("y_prev[%d,2]", seq_len(n_prev))
+
+pred_home <- draws_prev[, home_cols]
+pred_away <- draws_prev[, away_cols]
+
+goal_diff_draws <- pred_home - pred_away   # matrice n_draws x n_prev
+
+goal_diff_table <- data.frame(
+  goal_diff_mean = colMeans(goal_diff_draws),
+  goal_diff_sd   = apply(goal_diff_draws, 2, sd)
+)
 ```
 
 
+```{r}
+nrow(goal_diff_table) == nrow(prob_diag_infl_32$prob_table)   # doit être TRUE (24 == 24)
+
+# Vérification visuelle rapide : les deux doivent correspondre au même match
+cbind(prob_diag_infl_32$prob_table[, 1:2], goal_diff_table) %>% head()
+```
 
 
+```{r}
+prob_diag_infl_32$prob_table <- bind_cols(prob_diag_infl_32$prob_table, goal_diff_table)
+
+colnames(prob_diag_infl_32$prob_table) <- c(
+  "home", "away", "home_win", "draw", "away_win", "mlo",
+  "goal_diff_mean", "goal_diff_sd"
+)
+```
+
+```{r}
+write.csv(prob_diag_infl_32$prob_table, 
+          file = "~/work/World-Cup-2026/val/round32.csv", 
+          row.names = FALSE)
+```

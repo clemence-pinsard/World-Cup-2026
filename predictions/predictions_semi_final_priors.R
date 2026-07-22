@@ -228,7 +228,7 @@ sdata$prior_def_sd   <- as.array(prior_def_sd)
 
 mod_inf <- cmdstan_model(stan_informative)
 
-fit_m2_inf <- mod_inf$sample(
+fit_semi <- mod_inf$sample(
   data          = sdata,
   chains        = 4, parallel_chains = 4,
   init = 0,
@@ -239,20 +239,20 @@ fit_m2_inf <- mod_inf$sample(
 )
 
 # --- Match probabilities and difference of goals between the teams ---
-out_inf <- list(
-  fit        = fit_m2_inf,
+out_inf_semi <- list(
+  fit        = fit_semi,
   data       = wc_data,
   stan_data  = sdata,
   stan_code  = mod_inf$code(),
   stan_args  = list(),
   alg_method = "MCMC"
 )
-class(out_inf) <- c("stanFoot", "footBayes")
+class(out_inf_semi) <- c("stanFoot", "footBayes")
 
-yp     <- posterior::as_draws_matrix(fit_m2_inf$draws("y_prev"))
-th_all <- posterior::as_draws_matrix(fit_m2_inf$draws("theta_home_prev"))
-ta_all <- posterior::as_draws_matrix(fit_m2_inf$draws("theta_away_prev"))
-tc_all <- posterior::as_draws_matrix(fit_m2_inf$draws("theta_corr_prev"))
+yp     <- posterior::as_draws_matrix(fit_semi$draws("y_prev"))
+th_all <- posterior::as_draws_matrix(fit_semi$draws("theta_home_prev"))
+ta_all <- posterior::as_draws_matrix(fit_semi$draws("theta_away_prev"))
+tc_all <- posterior::as_draws_matrix(fit_semi$draws("theta_corr_prev"))
 
 goal_diff_stats <- function(n) {
   h    <- yp[, sprintf("y_prev[%d,1]", n)]
@@ -279,9 +279,9 @@ goal_diff_stats <- function(n) {
   )
 }
 
-prob_inf <- tryCatch(
+prob_inf_semi <- tryCatch(
   {
-    res <- foot_prob(object = out_inf, data = wc_data)
+    res <- foot_prob(object = out_inf_semi, data = wc_data)
     
     # on ajoute l'écart de buts au résultat de foot_prob
     gd <- do.call(rbind, lapply(seq_len(n_pred), goal_diff_stats))
@@ -308,11 +308,27 @@ prob_inf <- tryCatch(
   }
 )
 
-print(prob_inf$prob_table)
+print(prob_inf_semi$prob_table)
+
+write.csv(prob_inf_semi$prob_table, 
+          file = "~/work/World-Cup-2026/results/semi_diag_infl_biv_pois_priors.csv", 
+          row.names = FALSE)
 
 print(prob_inf)
 
-p_16 <- prob_inf$prob_plot
+prob_inf_semi$prob_table <- prob_inf_semi$prob_table %>% 
+  dplyr::select(home_team, away_team, prob_h, prob_d, prob_a, mlo, goal_diff_mean, goal_diff_sd)
+
+colnames(prob_inf_semi$prob_table) <- c(
+  "home", "away", "home_win", "draw", "away_win", "mlo",
+  "goal_diff_mean", "goal_diff_sd"
+)
+
+write.csv(prob_inf_semi$prob_table, 
+          file = "~/work/World-Cup-2026/val/semi.csv", 
+          row.names = FALSE)
+
+p_4 <- prob_inf_semi$prob_plot
 
 new_names <- c(
   "MEXICO"          = "Mexico",
@@ -366,28 +382,24 @@ new_names <- c(
 )
 
 for (old in names(new_names)) {
-  p_16$data$new_matches <- gsub(old, new_names[old], p_16$data$new_matches, ignore.case = TRUE)
+  p_4$data$new_matches <- gsub(old, new_names[old], p_4$data$new_matches, ignore.case = TRUE)
 }
 
-p_16$theme$axis.text.x$size <- 10
-p_16$theme$axis.text.y$size <- 10
-p_16$theme$axis.title$size  <- 10
-p_16$theme$strip.text$size  <- 10 
+p_4$theme$axis.text.x$size <- 10
+p_4$theme$axis.text.y$size <- 10
+p_4$theme$axis.title$size  <- 10
+p_4$theme$strip.text$size  <- 10 
 
-p_16 <- p_16 + theme(
+p_4 <- p_4 + theme(
   strip.text = element_text(size = 10, face = "bold"),  
   axis.text  = element_text(size = 10),                 
   axis.title = element_text(size = 10, face = "bold"), 
   plot.title = element_text(size = 14, face = "bold") 
 )
 
-p_16 <- p_16 + guides(color = "none")
+p_4 <- p_4 + guides(color = "none")
 
-p_16
+p_4
 
-write.csv(prob_inf$prob_table, 
-          file = "~/work/World-Cup-2026/results/semi_diag_infl_biv_pois_priors.csv", 
-          row.names = FALSE)
-
-ggsave("~/work/World-Cup-2026/results/plot_diag_infl_semi_priors.png", plot = p_16, width = 20, height = 15, dpi = 300)
+ggsave("~/work/World-Cup-2026/results/plot_diag_infl_semi_priors.png", plot = p_4, width = 20, height = 15, dpi = 300)
 

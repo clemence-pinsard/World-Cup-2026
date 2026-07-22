@@ -212,7 +212,7 @@ sdata$prior_def_sd   <- as.array(prior_def_sd)
 
 mod_inf <- cmdstan_model(stan_informative)
 
-fit_m2_inf <- mod_inf$sample(
+fit_r16 <- mod_inf$sample(
   data          = sdata,
   chains        = 4, parallel_chains = 4,
   init = 0,
@@ -223,20 +223,20 @@ fit_m2_inf <- mod_inf$sample(
 )
 
 # --- Match probabilities ---
-out_inf <- list(
-  fit        = fit_m2_inf,
+out_inf_r16 <- list(
+  fit        = fit_r16,
   data       = wc_data,
   stan_data  = sdata,
   stan_code  = mod_inf$code(),
   stan_args  = list(),
   alg_method = "MCMC"
 )
-class(out_inf) <- c("stanFoot", "footBayes")
+class(out_inf_r16) <- c("stanFoot", "footBayes")
 
-prob_inf <- tryCatch(
-  foot_prob(object = out_inf, data = wc_data),
+prob_inf_r16 <- tryCatch(
+  foot_prob(object = out_inf_r16, data = wc_data),
   error = function(e) {
-    yp <- posterior::as_draws_matrix(fit_m2_inf$draws("y_prev"))
+    yp <- posterior::as_draws_matrix(fit_r16$draws("y_prev"))
     res <- lapply(seq_len(n_pred), function(n) {
       h <- yp[, sprintf("y_prev[%d,1]", n)]
       a <- yp[, sprintf("y_prev[%d,2]", n)]
@@ -252,9 +252,44 @@ prob_inf <- tryCatch(
   }
 )
 
-print(prob_inf)
+print(prob_inf_r16)
 
-p_16 <- prob_inf$prob_plot
+
+n_prev <- 8   # correspond à predict = 24 dans stan_foot()
+
+draws_prev <- as_draws_matrix(out_inf_r16$fit$draws("y_prev"))   # adaptez le nom si besoin
+
+home_cols <- sprintf("y_prev[%d,1]", seq_len(n_prev))
+away_cols <- sprintf("y_prev[%d,2]", seq_len(n_prev))
+
+pred_home <- draws_prev[, home_cols]
+pred_away <- draws_prev[, away_cols]
+
+goal_diff_draws <- pred_home - pred_away   # matrice n_draws x n_prev
+
+goal_diff_table <- data.frame(
+  goal_diff_mean = colMeans(goal_diff_draws),
+  goal_diff_sd   = apply(goal_diff_draws, 2, sd)
+)
+
+nrow(goal_diff_table) == nrow(prob_inf_r16$prob_table)   # doit être TRUE (24 == 24)
+
+# Vérification visuelle rapide : les deux doivent correspondre au même match
+cbind(prob_inf_r16$prob_table[, 1:2], goal_diff_table) %>% head()
+
+prob_inf_r16$prob_table <- bind_cols(prob_inf_r16$prob_table, goal_diff_table)
+
+colnames(prob_inf_r16$prob_table) <- c(
+  "home", "away", "home_win", "draw", "away_win", "mlo",
+  "goal_diff_mean", "goal_diff_sd"
+)
+
+
+write.csv(prob_inf_r16$prob_table, 
+          file = "~/work/World-Cup-2026/val/round16.csv", 
+          row.names = FALSE)
+
+p_16 <- prob_inf_r16$prob_plot
 
 new_names <- c(
   "MEXICO"          = "Mexico",
@@ -327,7 +362,7 @@ p_16 <- p_16 + guides(color = "none")
 
 p_16
 
-write.csv(prob_inf$prob_table, 
+write.csv(prob_inf_r16$prob_table, 
           file = "~/work/World-Cup-2026/results/round16_diag_infl_biv_pois_priors.csv", 
           row.names = FALSE)
 
